@@ -66,6 +66,24 @@ type Cmd struct {
 	stdout chan byte
 	stderr chan byte
 }
+func (c *Cmd) run() {
+	tools.TimeIn("run")
+	defer tools.TimeOut("run")
+	defer close(c.stdout)
+	defer close(c.stderr)
+	c.Cmd.Stdout = ChannelO(c.stdout)
+	c.Cmd.Stdin = ChannelI(c.stdin)
+	c.Cmd.Stderr = ChannelO(c.stderr)
+	err := c.Cmd.Start()
+	if err == nil {
+		err = c.Cmd.Wait()
+		if err != nil {
+			ChannelO(c.stderr).Write([]byte(err.Error()))
+		}
+	} else {
+		ChannelO(c.stderr).Write([]byte(err.Error()))
+	}
+}
 
 type Compiler struct {
 	allowed map[string]bool
@@ -119,25 +137,16 @@ func (self *Compiler) Check(file string) error {
 	self.okChecked[file] = time.Now()
 	return nil
 }
-func (self *Compiler) run(file string, c *Cmd) {
-	tools.TimeIn("run")
-	defer tools.TimeOut("run")
-	defer close(c.stdout)
-	defer close(c.stderr)
-	c.Cmd = exec.Command(file)
-	c.Cmd.Stdout = ChannelO(c.stdout)
-	c.Cmd.Stdin = ChannelI(c.stdin)
-	c.Cmd.Stderr = ChannelO(c.stderr)
-	err := c.Cmd.Start()
-	if err == nil {
-		err = c.Cmd.Wait()
-		if err != nil {
-			ChannelO(c.stderr).Write([]byte(err.Error()))
-		}
-	} else {
-		fmt.Println("got",err,"when starting",file)
-		ChannelO(c.stderr).Write([]byte(err.Error()))
-	}
+func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
+	tools.TimeIn("RunFile")
+	defer tools.TimeOut("RunFile")
+	compiled, err := self.Compile(file)
+	if err != nil {
+		return nil, err
+	} 
+	cmd = &Cmd{exec.Command(compiled), make(chan byte), make(chan byte), make(chan byte)}
+	go cmd.run()
+	return cmd, nil
 }
 func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 	tools.TimeIn("Run")
@@ -156,17 +165,6 @@ func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 		return nil, err
 	}
 	return self.RunFile(file.Name())
-}
-func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
-	tools.TimeIn("RunFile")
-	defer tools.TimeOut("RunFile")
-	compiled, err := self.Compile(file)
-	if err != nil {
-		return nil, err
-	} 
-	cmd = &Cmd{nil, make(chan byte), make(chan byte), make(chan byte)}
-	go self.run(compiled, cmd)
-	return cmd, nil
 }
 func (self *Compiler) Compile(file string) (output string, err error) {
 	tools.TimeIn("Compile")
