@@ -61,7 +61,7 @@ func (self ChannelI) Read(bytes []byte) (n int, err error) {
 }
 
 type Cmd struct {
-	cmd *exec.Cmd
+	Cmd *exec.Cmd
 	stdin chan byte
 	stdout chan byte
 	stderr chan byte
@@ -124,13 +124,13 @@ func (self *Compiler) run(file string, c *Cmd) {
 	defer tools.TimeOut("run")
 	defer close(c.stdout)
 	defer close(c.stderr)
-	c.cmd = exec.Command(file)
-	c.cmd.Stdout = ChannelO(c.stdout)
-	c.cmd.Stdin = ChannelI(c.stdin)
-	c.cmd.Stderr = ChannelO(c.stderr)
-	err := c.cmd.Start()
+	c.Cmd = exec.Command(file)
+	c.Cmd.Stdout = ChannelO(c.stdout)
+	c.Cmd.Stdin = ChannelI(c.stdin)
+	c.Cmd.Stderr = ChannelO(c.stderr)
+	err := c.Cmd.Start()
 	if err == nil {
-		err = c.cmd.Wait()
+		err = c.Cmd.Wait()
 		if err != nil {
 			ChannelO(c.stderr).Write([]byte(err.Error()))
 		}
