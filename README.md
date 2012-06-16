@@ -1,6 +1,6 @@
 # gosafe
 
-A Go tool to safely compile and run Go programs by only allowing importing whitelisted packages.
+A Go tool to safely compile and run Go programs by only allowing importing of whitelisted packages.
 
 ## Why
 
