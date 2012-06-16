@@ -45,14 +45,30 @@ func compileTest(t *testing.T, c *Compiler, file string, work bool) {
 	}
 }
 
-func runTest(t *testing.T, c *Compiler, file string, work bool, stdin, stdout, stderr string) {
+func runStringTest(t *testing.T, c *Compiler, s string, work bool, stdin, stdout, stderr string) {
+	runTest(t, c, s, work, stdin, stdout, stderr, false)
+}
+
+func runFileTest(t *testing.T, c *Compiler, f string, work bool, stdin, stdout, stderr string) {
+	runTest(t, c, f, work, stdin, stdout, stderr, true)
+}
+
+
+func runTest(t *testing.T, c *Compiler, data string, work bool, stdin, stdout, stderr string, file bool) {
 	tools.TimeIn("runTest")
 	defer tools.TimeOut("runTest")
-	in_chan, out_chan, err_chan, err := c.Run(file)
+	var in_chan chan<- byte
+	var out_chan, err_chan <-chan byte
+	var err error
+	if file {
+		in_chan, out_chan, err_chan, err = c.RunFile(data)
+	} else {
+		in_chan, out_chan, err_chan, err = c.Run(data)
+	}
 	if work && err != nil {
-		t.Error(file, "should compile with", c, ", but got", err)
+		t.Error(data, "should compile with", c, ", but got", err)
 	} else if !work && err == nil {
-		t.Error(file, "should not compile with", c, ", but it did")
+		t.Error(data, "should not compile with", c, ", but it did")
 	}
 	if in_chan != nil {
 		errbuffer := bytes.NewBufferString("")
@@ -86,18 +102,31 @@ func runTest(t *testing.T, c *Compiler, file string, work bool, stdin, stdout, s
 		}
 		errs := strings.Trim(string(errbuffer.Bytes()), "\x000")
 		if errs != stderr {
-			t.Errorf("%v should generate stderr %v (%v) but generated %v (%v)\n", file, stderr, []byte(stderr), errs, []byte(errs))
+			t.Errorf("%v should generate stderr %v (%v) but generated %v (%v)\n", data, stderr, []byte(stderr), errs, []byte(errs))
 		}
 		outs := strings.Trim(string(outbuffer.Bytes()), "\x000")
 		if outs != stdout {
-			t.Errorf("%v should generate stdout %v (%v) but generated %v (%v)\n", file, stdout, []byte(stdout), outs, []byte(outs))
+			t.Errorf("%v should generate stdout %v (%v) but generated %v (%v)\n", data, stdout, []byte(stdout), outs, []byte(outs))
 		}
 	}
 }
 
 func TestDisallowedRunFmt(t *testing.T) {
 	c := NewCompiler()
-	runTest(t, c, "testfiles/test1.go", false, "", "", "")
+	runFileTest(t, c, "testfiles/test1.go", false, "", "", "")
+}
+
+func TestDisallowedRunString(t *testing.T) {
+	c := NewCompiler()
+	s := "package main\nimport \"fmt\"\nfunc main() { fmt.Print(\"teststring\") }"
+	runStringTest(t, c, s, false, "", "", "")
+}
+
+func TestAllowedRunString(t *testing.T) {
+	c := NewCompiler()
+	c.Allow("fmt")
+	s := "package main\nimport \"fmt\"\nfunc main() { fmt.Print(\"teststring\") }\n"
+	runStringTest(t, c, s, true, "", "teststring", "")
 }
 
 func TestSpeed(t *testing.T) {
@@ -107,7 +136,7 @@ func TestSpeed(t *testing.T) {
 	start := time.Now()
 	n := 10
 	for i := 0; i < n; i++ {
-		runTest(t, c, "testfiles/test1.go", true, "", "test1.go", "")
+		runFileTest(t, c, "testfiles/test1.go", true, "", "test1.go", "")
 	}
 	fmt.Println(n, "runs takes", time.Now().Sub(start))
 }
@@ -115,7 +144,7 @@ func TestSpeed(t *testing.T) {
 func TestAllowedRunFmt(t *testing.T) {
 	c := NewCompiler()
 	c.Allow("fmt")
-	runTest(t, c, "testfiles/test1.go", true, "", "test1.go", "")
+	runFileTest(t, c, "testfiles/test1.go", true, "", "test1.go", "")
 }
 
 func TestAllowedFmt(t *testing.T) {

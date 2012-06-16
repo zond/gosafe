@@ -22,6 +22,12 @@ func init() {
 	hasher = sha1.New()
 }
 
+func shorten(s string) string {
+	hasher.Reset()
+	hasher.Write([]byte(s))
+	return tools.NewBigIntBytes(hasher.Sum(nil)).BaseString(tools.MAX_BASE)
+}
+
 type visitor func(ast.Node)
 func (self visitor) Visit(node ast.Node) ast.Visitor {
 	self(node)
@@ -125,9 +131,27 @@ func (self *Compiler) run(file string, stdin <-chan byte, stdout chan<- byte, st
 		ChannelO(stderr).Write([]byte(err.Error()))
 	}
 }
-func (self *Compiler) Run(file string) (stdi chan<- byte, stdo <-chan byte, stde <-chan byte, err error) {
+func (self *Compiler) Run(s string) (stdi chan<- byte, stdo <-chan byte, stde <-chan byte, err error) {
 	tools.TimeIn("Run")
 	defer tools.TimeOut("Run")
+	output := path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe.go", shorten(s)))
+	file, err := os.Create(output)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer func() {
+		//os.Remove(output)
+	}()
+	file.WriteString(s)
+	err = file.Close()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return self.RunFile(file.Name())
+}
+func (self *Compiler) RunFile(file string) (stdi chan<- byte, stdo <-chan byte, stde <-chan byte, err error) {
+	tools.TimeIn("RunFile")
+	defer tools.TimeOut("RunFile")
 	compiled, err := self.Compile(file)
 	if err != nil {
 		return nil, nil, nil, err
@@ -141,7 +165,7 @@ func (self *Compiler) Run(file string) (stdi chan<- byte, stdo <-chan byte, stde
 func (self *Compiler) Compile(file string) (output string, err error) {
 	tools.TimeIn("Compile")
 	defer tools.TimeOut("Compile")
-	output = path.Join(os.TempDir(), fmt.Sprintf("%X.gosafe", hasher.Sum([]byte(file))))
+	output = path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe", shorten(file)))
 	err = self.CompileTo(file, output)
 	if err != nil {
 		return "", err
@@ -167,7 +191,8 @@ func (self *Compiler) CompileTo(file, output string) error {
 	tools.TimeIn("actual CompileTo")
 	defer tools.TimeOut("actual CompileTo")
 	var stderr bytes.Buffer
-	cmd := exec.Command("go", "build", "-ldflags", fmt.Sprint("-o ", output), file)
+	args := []string{"build", "-ldflags", fmt.Sprint("-o ", output), file}
+	cmd := exec.Command("go", args...)
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if len((&stderr).Bytes()) > 0 {
