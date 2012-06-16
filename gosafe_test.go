@@ -4,6 +4,7 @@ package gosafe
 import (
 	"time"
 	"github.com/zond/tools"
+	"github.com/zond/gosafety"
 	"testing"
 	"fmt"
 	"bytes"
@@ -152,6 +153,47 @@ func TestSpeed(t *testing.T) {
 		runFileTest(t, c, "testfiles/test1.go", true, "", "test1.go", "")
 	}
 	fmt.Println(n, "file runs takes", time.Now().Sub(start))
+}
+
+func TestGosafety(t *testing.T) {
+	c := NewCompiler()
+	c.Allow("time")
+	c.Allow("os")
+	c.Allow("fmt")
+	c.Allow("github.com/zond/gosafety")
+	f := "testfiles/test3.go"
+	cmd, err := c.RunFile(f)
+	if err == nil {
+		outj := gosafety.NewJSONWriter(cmd.Stdin)
+		inj := gosafety.NewJSONReader(cmd.Stdout)
+		done := make(chan bool)
+		data := make(map[string]interface{})
+		data["yo"] = "who's in the house?"
+		go func() {
+			indata := <- inj
+			injson, ok := indata.(map[string]interface{})
+			if ok {
+				data["returning"] = true
+				if len(injson) == len(data) {
+					if injson["yo"] == "who's in the house?" && injson["returning"] == true {
+					} else {
+						t.Error(f, "1 should send", data, "got", injson)
+					}
+				} else {
+					t.Error(f, "2 should send", data, "got", injson)
+				}
+			} else {
+				t.Error(f, "should send a map, got", indata)
+			}
+			outj <- "done!"
+			done <- true
+			close(inj)
+		}()
+		outj <- data
+		<- done
+	} else {
+		t.Error(f, "should be runnable, but got", err)
+	}
 }
 
 func TestAllowedRunFmt(t *testing.T) {

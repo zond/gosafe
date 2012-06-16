@@ -3,6 +3,7 @@ package gosafe
 
 import (
 	"github.com/zond/tools"
+	"github.com/zond/gosafety"
 	"fmt"
 	"go/parser"
 	"go/token"
@@ -33,7 +34,7 @@ func (self Error) Error() string {
 	return string(self)
 }
 
-type ChannelO chan<- byte
+type ChannelO gosafety.ByteChannel
 func (self ChannelO) Write(bytes []byte) (n int, err error) {
 	for _, byte := range bytes {
 		self <- byte
@@ -42,13 +43,29 @@ func (self ChannelO) Write(bytes []byte) (n int, err error) {
 }
 
 
-type ChannelI <-chan byte
+type ChannelI gosafety.ByteChannel
 func (self ChannelI) Read(bytes []byte) (n int, err error) {
 	for index, _ := range bytes {
-		if b, ok := <- self; ok {
-			bytes[index] = b
+		if index == 0 {
+			select {
+			case b, ok := <- self:
+				if ok {
+					bytes[index] = b
+				} else {
+					return index, io.EOF
+				}
+			}
 		} else {
-			return index, io.EOF
+			select {
+			case b, ok := <- self:
+				if ok {
+					bytes[index] = b
+				} else {
+					return index, io.EOF
+				}
+			default:
+				return index, nil
+			}
 		}
 	}
 	return len(bytes), nil
@@ -56,9 +73,9 @@ func (self ChannelI) Read(bytes []byte) (n int, err error) {
 
 type Cmd struct {
 	Cmd *exec.Cmd
-	Stdin chan byte
-	Stdout chan byte
-	Stderr chan byte
+	Stdin gosafety.ByteChannel
+	Stdout gosafety.ByteChannel
+	Stderr gosafety.ByteChannel
 }
 func (c *Cmd) run() {
 	tools.TimeIn("run")
@@ -146,7 +163,7 @@ func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 	if err != nil {
 		return nil, err
 	} 
-	cmd = &Cmd{exec.Command(compiled), make(chan byte), make(chan byte), make(chan byte)}
+	cmd = &Cmd{exec.Command(compiled), make(gosafety.ByteChannel), make(gosafety.ByteChannel), make(gosafety.ByteChannel)}
 	go cmd.run()
 	return cmd, nil
 }
