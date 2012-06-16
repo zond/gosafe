@@ -74,7 +74,7 @@ func runTest(t *testing.T, c *Compiler, data string, work bool, stdin, stdout, s
 		outbuffer := bytes.NewBufferString("")
 		inbuffer := bytes.NewBufferString(stdin)
 		next_in_byte, err := inbuffer.ReadByte()
-		inchan := cmd.stdin
+		inchan := cmd.Stdin
 		if err != nil {
 			close(inchan)
 			inchan = nil
@@ -82,12 +82,12 @@ func runTest(t *testing.T, c *Compiler, data string, work bool, stdin, stdout, s
 		cont := true
 		for cont {
 			select {
-			case err_byte, ok := <- cmd.stderr:
+			case err_byte, ok := <- cmd.Stderr:
 				if !ok {
 					cont = false
 				}
 				errbuffer.WriteByte(err_byte)
-			case out_byte, ok := <- cmd.stdout:
+			case out_byte, ok := <- cmd.Stdout:
 				if !ok {
 					cont = false
 				}

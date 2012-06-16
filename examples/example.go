@@ -14,5 +14,7 @@ func main() {
 	c.Allow("fmt")
 	cmd, err = c.Run("package main\nimport (\n\"fmt\"\n\"math\"\n)\nfunc main() { fmt.Print(math.Sin(10)) }\n")
 	fmt.Println(cmd, ", ", err)
-	cmd.Cmd.Wait()
+	for b := range cmd.Stdout {
+		fmt.Print(string(b))
+	}
 }

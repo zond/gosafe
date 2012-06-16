@@ -62,26 +62,26 @@ func (self ChannelI) Read(bytes []byte) (n int, err error) {
 
 type Cmd struct {
 	Cmd *exec.Cmd
-	stdin chan byte
-	stdout chan byte
-	stderr chan byte
+	Stdin chan byte
+	Stdout chan byte
+	Stderr chan byte
 }
 func (c *Cmd) run() {
 	tools.TimeIn("run")
 	defer tools.TimeOut("run")
-	defer close(c.stdout)
-	defer close(c.stderr)
-	c.Cmd.Stdout = ChannelO(c.stdout)
-	c.Cmd.Stdin = ChannelI(c.stdin)
-	c.Cmd.Stderr = ChannelO(c.stderr)
+	defer close(c.Stdout)
+	defer close(c.Stderr)
+	c.Cmd.Stdout = ChannelO(c.Stdout)
+	c.Cmd.Stdin = ChannelI(c.Stdin)
+	c.Cmd.Stderr = ChannelO(c.Stderr)
 	err := c.Cmd.Start()
 	if err == nil {
 		err = c.Cmd.Wait()
 		if err != nil {
-			ChannelO(c.stderr).Write([]byte(err.Error()))
+			ChannelO(c.Stderr).Write([]byte(err.Error()))
 		}
 	} else {
-		ChannelO(c.stderr).Write([]byte(err.Error()))
+		ChannelO(c.Stderr).Write([]byte(err.Error()))
 	}
 }
 
