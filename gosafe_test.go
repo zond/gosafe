@@ -57,46 +57,46 @@ func runFileTest(t *testing.T, c *Compiler, f string, work bool, stdin, stdout, 
 func runTest(t *testing.T, c *Compiler, data string, work bool, stdin, stdout, stderr string, file bool) {
 	tools.TimeIn("runTest")
 	defer tools.TimeOut("runTest")
-	var in_chan chan<- byte
-	var out_chan, err_chan <-chan byte
+	var cmd *Cmd
 	var err error
 	if file {
-		in_chan, out_chan, err_chan, err = c.RunFile(data)
+		cmd, err = c.RunFile(data)
 	} else {
-		in_chan, out_chan, err_chan, err = c.Run(data)
+		cmd, err = c.Run(data)
 	}
 	if work && err != nil {
 		t.Error(data, "should compile with", c, ", but got", err)
 	} else if !work && err == nil {
 		t.Error(data, "should not compile with", c, ", but it did")
 	}
-	if in_chan != nil {
+	if cmd != nil {
 		errbuffer := bytes.NewBufferString("")
 		outbuffer := bytes.NewBufferString("")
 		inbuffer := bytes.NewBufferString(stdin)
 		next_in_byte, err := inbuffer.ReadByte()
+		inchan := cmd.stdin
 		if err != nil {
-			close(in_chan)
-			in_chan = nil
+			close(inchan)
+			inchan = nil
 		}
 		cont := true
 		for cont {
 			select {
-			case err_byte, ok := <- err_chan:
+			case err_byte, ok := <- cmd.stderr:
 				if !ok {
 					cont = false
 				}
 				errbuffer.WriteByte(err_byte)
-			case out_byte, ok := <- out_chan:
+			case out_byte, ok := <- cmd.stdout:
 				if !ok {
 					cont = false
 				}
 				outbuffer.WriteByte(out_byte)
-			case in_chan <- next_in_byte:
+			case inchan <- next_in_byte:
 				next_in_byte, err = inbuffer.ReadByte()
 				if err != nil {
-					close(in_chan)
-					in_chan = nil
+					close(inchan)
+					inchan = nil
 				}
 			}
 		}

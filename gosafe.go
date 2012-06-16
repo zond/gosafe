@@ -60,6 +60,13 @@ func (self ChannelI) Read(bytes []byte) (n int, err error) {
 	return len(bytes), nil
 }
 
+type Cmd struct {
+	cmd *exec.Cmd
+	stdin chan byte
+	stdout chan byte
+	stderr chan byte
+}
+
 type Compiler struct {
 	allowed map[string]bool
 	okChecked map[string]time.Time
@@ -112,32 +119,33 @@ func (self *Compiler) Check(file string) error {
 	self.okChecked[file] = time.Now()
 	return nil
 }
-func (self *Compiler) run(file string, stdin <-chan byte, stdout chan<- byte, stderr chan<- byte) {
+func (self *Compiler) run(file string, c *Cmd) {
 	tools.TimeIn("run")
 	defer tools.TimeOut("run")
-	defer close(stdout)
-	defer close(stderr)
-	cmd := exec.Command(file)
-	cmd.Stdout = ChannelO(stdout)
-	cmd.Stdin = ChannelI(stdin)
-	cmd.Stderr = ChannelO(stderr)
-	err := cmd.Start()
+	defer close(c.stdout)
+	defer close(c.stderr)
+	c.cmd = exec.Command(file)
+	c.cmd.Stdout = ChannelO(c.stdout)
+	c.cmd.Stdin = ChannelI(c.stdin)
+	c.cmd.Stderr = ChannelO(c.stderr)
+	err := c.cmd.Start()
 	if err == nil {
-		err = cmd.Wait()
+		err = c.cmd.Wait()
 		if err != nil {
-			ChannelO(stderr).Write([]byte(err.Error()))
+			ChannelO(c.stderr).Write([]byte(err.Error()))
 		}
 	} else {
-		ChannelO(stderr).Write([]byte(err.Error()))
+		fmt.Println("got",err,"when starting",file)
+		ChannelO(c.stderr).Write([]byte(err.Error()))
 	}
 }
-func (self *Compiler) Run(s string) (stdi chan<- byte, stdo <-chan byte, stde <-chan byte, err error) {
+func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 	tools.TimeIn("Run")
 	defer tools.TimeOut("Run")
 	output := path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe.go", shorten(s)))
 	file, err := os.Create(output)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	defer func() {
 		//os.Remove(output)
@@ -145,22 +153,20 @@ func (self *Compiler) Run(s string) (stdi chan<- byte, stdo <-chan byte, stde <-
 	file.WriteString(s)
 	err = file.Close()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	return self.RunFile(file.Name())
 }
-func (self *Compiler) RunFile(file string) (stdi chan<- byte, stdo <-chan byte, stde <-chan byte, err error) {
+func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 	tools.TimeIn("RunFile")
 	defer tools.TimeOut("RunFile")
 	compiled, err := self.Compile(file)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	} 
-	stderr := make(chan byte)
-	stdin := make(chan byte)
-	stdout := make(chan byte)
-	go self.run(compiled, (<-chan byte)(stdin), (chan<- byte)(stdout), (chan<- byte)(stderr))
-	return (chan<- byte)(stdin), (<-chan byte)(stdout), (<-chan byte)(stderr), nil
+	cmd = &Cmd{nil, make(chan byte), make(chan byte), make(chan byte)}
+	go self.run(compiled, cmd)
+	return cmd, nil
 }
 func (self *Compiler) Compile(file string) (output string, err error) {
 	tools.TimeIn("Compile")
