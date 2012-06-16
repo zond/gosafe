@@ -2,16 +2,25 @@
 package gosafe
 
 import (
+	"github.com/zond/tools"
 	"fmt"
 	"go/parser"
 	"go/token"
 	"go/ast"
 	"bytes"
+	"crypto/sha1"
+	"hash"
 	"os/exec"
+	"path"
 	"io"
 	"os"
 	"time"
 )
+
+var hasher hash.Hash
+func init() {
+	hasher = sha1.New()
+}
 
 type visitor func(ast.Node)
 func (self visitor) Visit(node ast.Node) ast.Visitor {
@@ -48,14 +57,17 @@ func (self ChannelI) Read(bytes []byte) (n int, err error) {
 type Compiler struct {
 	allowed map[string]bool
 	okChecked map[string]time.Time
+	okCompiled map[string]time.Time
 }
 func NewCompiler() *Compiler {
-	return &Compiler{make(map[string]bool), make(map[string]time.Time)}
+	return &Compiler{make(map[string]bool), make(map[string]time.Time), make(map[string]time.Time)}
 }
 func (self *Compiler) Allow(p string) {
 	self.allowed[fmt.Sprint("\"", p, "\"")] = true
 }
 func (self *Compiler) Check(file string) error {
+	tools.TimeIn("Check")
+	defer tools.TimeOut("Check")
 	fstat, err := os.Stat(file)
 	if err != nil {
 		// Problem stating file
@@ -65,6 +77,8 @@ func (self *Compiler) Check(file string) error {
 		// Was checked before, and after the file was last changed
 		return nil
 	}
+	tools.TimeIn("actual Check")
+	defer tools.TimeOut("actual Check")
 	var disallowed []string 
 	tree, _ := parser.ParseFile(token.NewFileSet(), file, nil, 0)
 	ast.Walk(visitor(func(node ast.Node) {
@@ -93,9 +107,11 @@ func (self *Compiler) Check(file string) error {
 	return nil
 }
 func (self *Compiler) run(file string, stdin <-chan byte, stdout chan<- byte, stderr chan<- byte) {
+	tools.TimeIn("run")
+	defer tools.TimeOut("run")
 	defer close(stdout)
 	defer close(stderr)
-	cmd := exec.Command("go", "run", file)
+	cmd := exec.Command(file)
 	cmd.Stdout = ChannelO(stdout)
 	cmd.Stdin = ChannelI(stdin)
 	cmd.Stderr = ChannelO(stderr)
@@ -110,23 +126,48 @@ func (self *Compiler) run(file string, stdin <-chan byte, stdout chan<- byte, st
 	}
 }
 func (self *Compiler) Run(file string) (stdi chan<- byte, stdo <-chan byte, stde <-chan byte, err error) {
-	err = self.Check(file)
+	tools.TimeIn("Run")
+	defer tools.TimeOut("Run")
+	compiled, err := self.Compile(file)
 	if err != nil {
 		return nil, nil, nil, err
 	} 
 	stderr := make(chan byte)
 	stdin := make(chan byte)
 	stdout := make(chan byte)
-	go self.run(file, (<-chan byte)(stdin), (chan<- byte)(stdout), (chan<- byte)(stderr))
+	go self.run(compiled, (<-chan byte)(stdin), (chan<- byte)(stdout), (chan<- byte)(stderr))
 	return (chan<- byte)(stdin), (<-chan byte)(stdout), (<-chan byte)(stderr), nil
 }
-func (self *Compiler) Compile(file string) error {
-	err := self.Check(file)
+func (self *Compiler) Compile(file string) (output string, err error) {
+	tools.TimeIn("Compile")
+	defer tools.TimeOut("Compile")
+	output = path.Join(os.TempDir(), fmt.Sprintf("%X.gosafe", hasher.Sum([]byte(file))))
+	err = self.CompileTo(file, output)
+	if err != nil {
+		return "", err
+	}
+	return output, nil
+}
+func (self *Compiler) CompileTo(file, output string) error {
+	tools.TimeIn("CompileTo")
+	defer tools.TimeOut("CompileTo")
+	fstat, err := os.Stat(file)
+	if err != nil {
+		// Problem stating file
+		return err
+	}
+	if compileTime, ok := self.okCompiled[file]; ok && compileTime.After(fstat.ModTime()) {
+		// Was compiled before, and after the file was last changed
+		return nil
+	}
+	err = self.Check(file)
 	if err != nil {
 		return err
 	}
+	tools.TimeIn("actual CompileTo")
+	defer tools.TimeOut("actual CompileTo")
 	var stderr bytes.Buffer
-	cmd := exec.Command("go", "build", file)
+	cmd := exec.Command("go", "build", "-ldflags", fmt.Sprint("-o ", output), file)
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if len((&stderr).Bytes()) > 0 {
@@ -135,5 +176,6 @@ func (self *Compiler) Compile(file string) error {
 	if err != nil {
 		return err
 	}
+	self.okCompiled[file] = time.Now()
 	return nil
 }
