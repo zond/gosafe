@@ -22,12 +22,6 @@ func init() {
 	hasher = sha1.New()
 }
 
-func shorten(s string) string {
-	hasher.Reset()
-	hasher.Write([]byte(s))
-	return tools.NewBigIntBytes(hasher.Sum(nil)).BaseString(tools.MAX_BASE)
-}
-
 type visitor func(ast.Node)
 func (self visitor) Visit(node ast.Node) ast.Visitor {
 	self(node)
@@ -96,6 +90,14 @@ func NewCompiler() *Compiler {
 func (self *Compiler) Allow(p string) {
 	self.allowed[fmt.Sprint("\"", p, "\"")] = true
 }
+func (self *Compiler) shorten(s string) string {
+	hasher.Reset()
+	for allowed, _ := range self.allowed {
+		hasher.Write([]byte(allowed))
+	}
+	hasher.Write([]byte(s))
+	return tools.NewBigIntBytes(hasher.Sum(nil)).BaseString(tools.MAX_BASE)
+}
 func (self *Compiler) Check(file string) error {
 	tools.TimeIn("Check")
 	defer tools.TimeOut("Check")
@@ -151,7 +153,7 @@ func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 	tools.TimeIn("Run")
 	defer tools.TimeOut("Run")
-	output := path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe.go", shorten(s)))
+	output := path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe.go", self.shorten(s)))
 	file, err := os.Create(output)
 	if err != nil {
 		return nil, err
@@ -169,7 +171,7 @@ func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 func (self *Compiler) Compile(file string) (output string, err error) {
 	tools.TimeIn("Compile")
 	defer tools.TimeOut("Compile")
-	output = path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe", shorten(file)))
+	output = path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe", self.shorten(file)))
 	err = self.CompileTo(file, output)
 	if err != nil {
 		return "", err
