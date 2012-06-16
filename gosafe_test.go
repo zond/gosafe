@@ -129,6 +129,19 @@ func TestAllowedRunString(t *testing.T) {
 	runStringTest(t, c, s, true, "", "teststring", "")
 }
 
+func TestSpeedString(t *testing.T) {
+	tools.TimeClear()
+	c := NewCompiler()
+	c.Allow("fmt")
+	start := time.Now()
+	n := 10
+	s := "package main\nimport \"fmt\"\nfunc main() { fmt.Print(\"teststring\") }\n"
+	for i := 0; i < n; i++ {
+		runStringTest(t, c, s, true, "", "teststring", "")
+	}
+	fmt.Println(n, "string runs takes", time.Now().Sub(start))
+}
+
 func TestSpeed(t *testing.T) {
 	tools.TimeClear()
 	c := NewCompiler()
@@ -138,7 +151,7 @@ func TestSpeed(t *testing.T) {
 	for i := 0; i < n; i++ {
 		runFileTest(t, c, "testfiles/test1.go", true, "", "test1.go", "")
 	}
-	fmt.Println(n, "runs takes", time.Now().Sub(start))
+	fmt.Println(n, "file runs takes", time.Now().Sub(start))
 }
 
 func TestAllowedRunFmt(t *testing.T) {
