@@ -8,3 +8,6 @@ To enable running any piece of Go code (even if it comes from unknown sources) w
 
 ## How
 
+Use `Compiler.Allow` to allow given packages, then run code with `Compiler.Run` or `Compiler.RunFile`.
+
+See https://github.com/zond/gosafe/blob/master/examples/example.go
