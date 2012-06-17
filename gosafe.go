@@ -94,7 +94,7 @@ func (self *Cmd) Handle(i, o interface{}) error {
 	go func() {
 		<- time.After(HANDLER_WIPE)
 		if time.Now().Sub(self.lastHandle) > HANDLER_RESCUE {
-			
+			self.Kill()
 		}
 	}()
 	if _, running := self.Pid(); running {
