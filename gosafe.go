@@ -18,8 +18,8 @@ import (
 	"io"
 )
 
-const HANDLER_WIPE = time.Second * 10
-const HANDLER_RESCUE = time.Second * 5
+const HANDLER_TIMEOUT = time.Second * 10
+const HANDLER_KEEPALIVE = time.Second * 5
 
 var hasher hash.Hash
 func init() {
@@ -46,6 +46,8 @@ type Cmd struct {
 	encoder *json.Encoder
 	decoder *json.Decoder
 	lastHandle time.Time
+	Timeout time.Duration
+	Keepalive time.Duration
 }
 func (self *Cmd) String() string {
 	pid, running := self.Pid()
@@ -94,6 +96,18 @@ func (self *Cmd) reHandle(i, o interface{}) error {
 	self.Start()
 	return self.Handle(i, o)
 }
+func (self *Cmd) timeout() time.Duration {
+	if self.Timeout == 0 {
+		return HANDLER_TIMEOUT
+	} 
+	return self.Timeout
+}
+func (self *Cmd) keepalive() time.Duration {
+	if self.Keepalive == 0 {
+		return HANDLER_KEEPALIVE
+	}
+	return self.Keepalive
+}
 func (self *Cmd) Handle(i, o interface{}) error {
 	if _, running := self.Pid(); !running {
 		return self.reHandle(i, o)
@@ -111,8 +125,8 @@ func (self *Cmd) Handle(i, o interface{}) error {
 		return err
 	}
 	go func() {
-		<- time.After(HANDLER_WIPE)
-		if time.Now().Sub(self.lastHandle) > HANDLER_RESCUE {
+		<- time.After(self.timeout())
+		if time.Now().Sub(self.lastHandle) > self.keepalive() {
 			self.Kill()
 		}
 	}()
