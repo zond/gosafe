@@ -18,6 +18,9 @@ import (
 	"io"
 )
 
+const HANDLER_WIPE = time.Second * 10
+const HANDLER_RESCUE = time.Second * 5
+
 var hasher hash.Hash
 func init() {
 	hasher = sha1.New()
@@ -66,6 +69,15 @@ func (self *Cmd) Decode(i interface{}) error {
 	}
 	return self.decoder.Decode(i)
 }
+func (self *Cmd) Kill() error {
+	if self.Cmd == nil {
+		return nil
+	}
+	if self.Cmd.Process == nil {
+		return nil
+	}
+	return self.Cmd.Process.Kill()
+}
 func (self *Cmd) Pid() (int, bool) {
 	if self.Cmd == nil {
 		return 0, false
@@ -79,7 +91,14 @@ func (self *Cmd) Pid() (int, bool) {
 	return 0, false
 }
 func (self *Cmd) Handle(i, o interface{}) error {
+	go func() {
+		<- time.After(HANDLER_WIPE)
+		if time.Now().Sub(self.lastHandle) > HANDLER_RESCUE {
+			
+		}
+	}()
 	if _, running := self.Pid(); running {
+		self.lastHandle = time.Now()
 		err := self.Encode(i)
 		if err != nil {
 			return err
@@ -95,6 +114,9 @@ func (self *Cmd) Handle(i, o interface{}) error {
 }
 func (self *Cmd) Start() error {
 	self.Cmd = exec.Command(self.Binary)
+	self.encoder = nil
+	self.decoder = nil
+	self.lastHandle = time.Now()
 	var err error
 	if self.Stdin, err = self.Cmd.StdinPipe(); err != nil {
 		return err
