@@ -4,9 +4,10 @@ package gosafe
 import (
 	"time"
 	"github.com/zond/tools"
-	"github.com/zond/gosafety"
 	"testing"
 	"fmt"
+	"encoding/json"
+	"io/ioutil"
 	"bytes"
 	"os"
 	"strings"
@@ -73,34 +74,27 @@ func runTest(t *testing.T, c *Compiler, data string, work bool, stdin, stdout, s
 	if cmd != nil {
 		errbuffer := bytes.NewBufferString("")
 		outbuffer := bytes.NewBufferString("")
-		inbuffer := bytes.NewBufferString(stdin)
-		next_in_byte, err := inbuffer.ReadByte()
-		inchan := cmd.Stdin
-		if err != nil {
-			close(inchan)
-			inchan = nil
-		}
-		cont := true
-		for cont {
-			select {
-			case err_byte, ok := <- cmd.Stderr:
-				if !ok {
-					cont = false
-				}
-				errbuffer.WriteByte(err_byte)
-			case out_byte, ok := <- cmd.Stdout:
-				if !ok {
-					cont = false
-				}
-				outbuffer.WriteByte(out_byte)
-			case inchan <- next_in_byte:
-				next_in_byte, err = inbuffer.ReadByte()
-				if err != nil {
-					close(inchan)
-					inchan = nil
-				}
+		done := make(chan bool)
+		go func() {
+			b, err := ioutil.ReadAll(cmd.Stdout)
+			if err != nil {
+				t.Error(data, "should have a readable stdout, but got", err)
 			}
-		}
+			outbuffer.Write(b)
+			done <- true
+		}()
+		go func() {
+			b, err := ioutil.ReadAll(cmd.Stderr)
+			if err != nil {
+				t.Error(data, "should have a readable stderr, but got", err)
+			}
+			errbuffer.Write(b)
+			done <- true
+		}()
+		cmd.Stdin.Write([]byte(stdout))
+		cmd.Stdin.Close()
+		<- done
+		<- done
 		errs := strings.Trim(string(errbuffer.Bytes()), "\x000")
 		if errs != stderr {
 			t.Errorf("%v should generate stderr %v (%v) but generated %v (%v)\n", data, stderr, []byte(stderr), errs, []byte(errs))
@@ -164,32 +158,35 @@ func TestGosafety(t *testing.T) {
 	f := "testfiles/test3.go"
 	cmd, err := c.RunFile(f)
 	if err == nil {
-		outj := gosafety.NewJSONWriter(cmd.Stdin)
-		inj := gosafety.NewJSONReader(cmd.Stdout)
+		outj := json.NewEncoder(cmd.Stdin)
+		inj := json.NewDecoder(cmd.Stdout)
 		done := make(chan bool)
 		data := make(map[string]interface{})
 		data["yo"] = "who's in the house?"
 		go func() {
-			indata := <- inj
-			injson, ok := indata.(map[string]interface{})
-			if ok {
-				data["returning"] = true
-				if len(injson) == len(data) {
-					if injson["yo"] == "who's in the house?" && injson["returning"] == true {
+			var indata interface{}
+			if inj.Decode(&indata); err == nil {
+				if injson, ok := indata.(map[string]interface{}); ok {
+					data["returning"] = true
+					if len(injson) == len(data) {
+						if injson["yo"] != "who's in the house?" || injson["returning"] != true {
+							t.Error(f, "1 should send", data, "got", injson)
+						}
 					} else {
-						t.Error(f, "1 should send", data, "got", injson)
+						t.Error(f, "2 should send", data, "got", injson)
 					}
 				} else {
-					t.Error(f, "2 should send", data, "got", injson)
+					t.Error(f, "should send us a map[string]interface{}, got", indata)
 				}
 			} else {
-				t.Error(f, "should send a map, got", indata)
+				t.Error(f, "should send us json data, got", err)
 			}
-			outj <- "done!"
 			done <- true
-			close(inj)
+			cmd.Stdin.Close()
 		}()
-		outj <- data
+		if err = outj.Encode(data); err != nil {
+			t.Error(f, "should get some json, got", err)
+		}
 		<- done
 	} else {
 		t.Error(f, "should be runnable, but got", err)

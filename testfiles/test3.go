@@ -1,9 +1,11 @@
 /*
  * cmd, _ := c.RunFile(f)
- * outj := gosafety.NewJSONWriter(cmd.Stdin)
- * inj := gosafety.NewJSONReader(cmd.Stdout)
- * json_from_process := <- inj
- * outj <- my_json_response
+ * outj := json.NewEncoder(cmd.Stdin)
+ * inj := json.NewDecoder(cmd.Stdout)
+ * var json_from_process interface{}
+ * inj.Decode(&json_from_process)
+ * my_json_response := "hello!"
+ * outj.Encode(my_json_response)
  */
 package main
 
@@ -12,10 +14,10 @@ import (
 )
 
 func main() {
-	json_in := gosafety.Stdin().PacketReader().JSONReader()
-	json := (<-json_in).(map[string]interface{})
+	json_in := gosafety.Stdin()
+	var json map[string]interface{}
+	json_in.Decode(&json)
 	json["returning"] = true
-	json_out := gosafety.Stdout().PacketWriter().JSONWriter()
-	json_out <- json
-	<-json_in
+	json_out := gosafety.Stdout()
+	json_out.Encode(json)
 }

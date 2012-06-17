@@ -3,7 +3,6 @@ package gosafe
 
 import (
 	"github.com/zond/tools"
-	"github.com/zond/gosafety"
 	"fmt"
 	"go/parser"
 	"go/token"
@@ -13,9 +12,9 @@ import (
 	"hash"
 	"os/exec"
 	"path"
-	"io"
 	"os"
 	"time"
+	"io"
 )
 
 var hasher hash.Hash
@@ -34,66 +33,11 @@ func (self Error) Error() string {
 	return string(self)
 }
 
-type ChannelO gosafety.ByteChannel
-func (self ChannelO) Write(bytes []byte) (n int, err error) {
-	for _, byte := range bytes {
-		self <- byte
-	}
-	return len(bytes), nil
-}
-
-
-type ChannelI gosafety.ByteChannel
-func (self ChannelI) Read(bytes []byte) (n int, err error) {
-	for index, _ := range bytes {
-		if index == 0 {
-			select {
-			case b, ok := <- self:
-				if ok {
-					bytes[index] = b
-				} else {
-					return index, io.EOF
-				}
-			}
-		} else {
-			select {
-			case b, ok := <- self:
-				if ok {
-					bytes[index] = b
-				} else {
-					return index, io.EOF
-				}
-			default:
-				return index, nil
-			}
-		}
-	}
-	return len(bytes), nil
-}
-
 type Cmd struct {
 	Cmd *exec.Cmd
-	Stdin gosafety.ByteChannel
-	Stdout gosafety.ByteChannel
-	Stderr gosafety.ByteChannel
-}
-func (c *Cmd) run() {
-	tools.TimeIn("run")
-	defer tools.TimeOut("run")
-	defer close(c.Stdout)
-	defer close(c.Stderr)
-	c.Cmd.Stdout = ChannelO(c.Stdout)
-	c.Cmd.Stdin = ChannelI(c.Stdin)
-	c.Cmd.Stderr = ChannelO(c.Stderr)
-	err := c.Cmd.Start()
-	if err == nil {
-		err = c.Cmd.Wait()
-		if err != nil {
-			ChannelO(c.Stderr).Write([]byte(err.Error()))
-		}
-	} else {
-		ChannelO(c.Stderr).Write([]byte(err.Error()))
-	}
+	Stdin io.WriteCloser
+	Stdout io.Reader
+	Stderr io.Reader
 }
 
 type Compiler struct {
@@ -163,8 +107,25 @@ func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 	if err != nil {
 		return nil, err
 	} 
-	cmd = &Cmd{exec.Command(compiled), make(gosafety.ByteChannel), make(gosafety.ByteChannel), make(gosafety.ByteChannel)}
-	go cmd.run()
+	cmd = &Cmd{}
+	cmd.Cmd = exec.Command(compiled)
+	if cmd.Stdin, err = cmd.Cmd.StdinPipe(); err != nil {
+		return nil, err
+	}
+	if cmd.Stdout, err = cmd.Cmd.StdoutPipe(); err != nil {
+		return nil, err
+	}
+	if cmd.Stderr, err = cmd.Cmd.StderrPipe(); err != nil {
+		return nil, err
+	}
+	if err = cmd.Cmd.Start(); err != nil {
+		return nil, err
+	}
+	go func() {
+		if err = cmd.Cmd.Wait(); err != nil {
+			cmd.Cmd.Stderr.Write([]byte(err.Error()))
+		}
+	}()
 	return cmd, nil
 }
 func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
