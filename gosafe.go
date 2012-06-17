@@ -44,7 +44,7 @@ type Cmd struct {
 	Stderr io.Writer
 	encoder *json.Encoder
 	decoder *json.Decoder
-	lastHandle time.Time
+	lastEvent time.Time
 	Timeout time.Duration
 }
 func (self *Cmd) String() string {
@@ -104,9 +104,12 @@ func (self *Cmd) Handle(i, o interface{}) error {
 	if _, running := self.Pid(); !running {
 		return self.reHandle(i, o)
 	}
-	self.lastHandle = time.Now()
+	self.lastEvent = time.Now()
 	err := self.Encode(i)
 	if err != nil {
+		if err.Error() == "write |1: bad file descriptor" {
+			return self.reHandle(i, o)
+		}
 		return err
 	}
 	err = self.Decode(&o)
@@ -118,8 +121,11 @@ func (self *Cmd) Handle(i, o interface{}) error {
 	}
 	go func() {
 		<- time.After(self.timeout())
-		if time.Now().Sub(self.lastHandle) > self.timeout() {
-			self.Kill()
+		if time.Now().Sub(self.lastEvent) > self.timeout() {
+			self.lastEvent = time.Now()
+			if err := self.Kill(); err != nil {
+				fmt.Fprintln(os.Stderr, "While trying to kill an idle process: ", err)
+			}
 		}
 	}()
 	return nil
@@ -128,7 +134,7 @@ func (self *Cmd) Start() error {
 	self.Cmd = exec.Command(self.Binary)
 	self.encoder = nil
 	self.decoder = nil
-	self.lastHandle = time.Now()
+	self.lastEvent = time.Now()
 	var err error
 	if self.Stdin, err = self.Cmd.StdinPipe(); err != nil {
 		return err
