@@ -10,14 +10,14 @@
 package main
 
 import (
-	"github.com/zond/gosafety"
+	"github.com/zond/gosafe/child"
 )
 
 func main() {
-	json_in := gosafety.Stdin()
+	json_in := child.Stdin()
 	var json map[string]interface{}
 	json_in.Decode(&json)
 	json["returning"] = true
-	json_out := gosafety.Stdout()
+	json_out := child.Stdout()
 	json_out.Encode(json)
 }

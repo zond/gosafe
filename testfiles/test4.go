@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/zond/gosafety"
+	"github.com/zond/gosafe/child"
 	"math/rand"
 	"time"
 	"fmt"
@@ -9,8 +9,8 @@ import (
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	json_in := gosafety.Stdin()
-	json_out := gosafety.Stdout()
+	json_in := child.Stdin()
+	json_out := child.Stdout()
 	t := rand.Int()
 	n := 0
 	var json map[string]interface{}

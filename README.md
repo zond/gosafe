@@ -14,4 +14,4 @@ See https://github.com/zond/gosafe/blob/master/examples/example.go
 
 ## More
 
-Use `gosafety.Stdin()`, `gosafety.Stdout()` and `gosafety.Stderr()` in https://github.com/zond/gosafety to communicate with the child processes via structured data. See https://github.com/zond/gosafe/blob/master/testfiles/test3.go for an example.
+Use `child.Stdin()`, `child.Stdout()` and `child.Stderr()` in https://github.com/zond/gosafe/child/child.go to communicate with the child processes via structured data. See https://github.com/zond/gosafe/blob/master/testfiles/test3.go for an example.

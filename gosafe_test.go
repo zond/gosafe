@@ -171,7 +171,7 @@ func mapTest(t *testing.T, i1, i2 interface{}) {
 
 func TestHandling(t *testing.T) {
 	c := NewCompiler()
-	c.Allow("github.com/zond/gosafety")
+	c.Allow("github.com/zond/gosafe/child")
 	s := "testfiles/test3.go"
 	cmd, err := c.CommandFile(s)
 	if err == nil {
@@ -227,7 +227,7 @@ func continuousHandleTest(t *testing.T, cmd *Cmd, ti interface{}, ni map[interfa
 
 func TestContinuousHandling(t *testing.T) {
 	c := NewCompiler()
-	c.Allow("github.com/zond/gosafety")
+	c.Allow("github.com/zond/gosafe/child")
 	c.Allow("math/rand")
 	c.Allow("time")
 	c.Allow("fmt")
@@ -288,7 +288,7 @@ func TestGosafety(t *testing.T) {
 	c.Allow("time")
 	c.Allow("os")
 	c.Allow("fmt")
-	c.Allow("github.com/zond/gosafety")
+	c.Allow("github.com/zond/gosafe/child")
 	f := "testfiles/test3.go"
 	cmd, err := c.RunFile(f)
 	if err == nil {
