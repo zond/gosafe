@@ -66,10 +66,14 @@ func runTest(t *testing.T, c *Compiler, data string, work bool, stdin, stdout, s
 	} else {
 		cmd, err = c.Run(data)
 	}
+	cmdTest(t, cmd, err, data, work, stdin, stdout, stderr)
+}
+
+func cmdTest(t *testing.T, cmd *Cmd, err error, data string, work bool, stdin, stdout, stderr string) {
 	if work && err != nil {
-		t.Error(data, "should compile with", c, ", but got", err)
+		t.Error(data, "should compile, but got", err)
 	} else if !work && err == nil {
-		t.Error(data, "should not compile with", c, ", but it did")
+		t.Error(data, "should not compile, but it did")
 	}
 	if cmd != nil {
 		errbuffer := bytes.NewBufferString("")
@@ -147,6 +151,23 @@ func TestSpeed(t *testing.T) {
 		runFileTest(t, c, "testfiles/test1.go", true, "", "test1.go", "")
 	}
 	fmt.Println(n, "file runs takes", time.Now().Sub(start))
+}
+
+func TestRepeatedRuns(t *testing.T) {
+	c := NewCompiler()
+	c.Allow("fmt")
+	s := "package main\nimport \"fmt\"\nfunc main() { fmt.Print(\"teststring\") }\n"
+	cmd, err := c.Command(s)
+	if err == nil {
+		cmd.Start()
+		cmdTest(t, cmd, err, s, true, "", "teststring", "")
+		cmd.Start()
+		cmdTest(t, cmd, err, s, true, "", "teststring", "")
+		cmd.Start()
+		cmdTest(t, cmd, err, s, true, "", "teststring", "")
+	} else {
+		t.Error(s, "should compile, got", err)
+	}
 }
 
 func TestGosafety(t *testing.T) {
