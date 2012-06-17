@@ -34,10 +34,33 @@ func (self Error) Error() string {
 }
 
 type Cmd struct {
+	Binary string
 	Cmd *exec.Cmd
 	Stdin io.WriteCloser
 	Stdout io.Reader
 	Stderr io.Reader
+}
+func (self *Cmd) Start() error {
+	self.Cmd = exec.Command(self.Binary)
+	var err error
+	if self.Stdin, err = self.Cmd.StdinPipe(); err != nil {
+		return err
+	}
+	if self.Stdout, err = self.Cmd.StdoutPipe(); err != nil {
+		return err
+	}
+	if self.Stderr, err = self.Cmd.StderrPipe(); err != nil {
+		return err
+	}
+	if err := self.Cmd.Start(); err != nil {
+		return err
+	}
+	go func() {
+		if err = self.Cmd.Wait(); err != nil {
+			self.Cmd.Stderr.Write([]byte(err.Error()))
+		}
+	}()
+	return nil
 }
 
 type Compiler struct {
@@ -107,25 +130,8 @@ func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 	if err != nil {
 		return nil, err
 	} 
-	cmd = &Cmd{}
-	cmd.Cmd = exec.Command(compiled)
-	if cmd.Stdin, err = cmd.Cmd.StdinPipe(); err != nil {
-		return nil, err
-	}
-	if cmd.Stdout, err = cmd.Cmd.StdoutPipe(); err != nil {
-		return nil, err
-	}
-	if cmd.Stderr, err = cmd.Cmd.StderrPipe(); err != nil {
-		return nil, err
-	}
-	if err = cmd.Cmd.Start(); err != nil {
-		return nil, err
-	}
-	go func() {
-		if err = cmd.Cmd.Wait(); err != nil {
-			cmd.Cmd.Stderr.Write([]byte(err.Error()))
-		}
-	}()
+	cmd = &Cmd{Binary: compiled}
+	cmd.Start()
 	return cmd, nil
 }
 func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
