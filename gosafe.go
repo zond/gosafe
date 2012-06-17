@@ -137,7 +137,7 @@ func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 		return nil, err
 	}
 	defer func() {
-		//os.Remove(output)
+		os.Remove(output)
 	}()
 	file.WriteString(s)
 	err = file.Close()
