@@ -19,7 +19,6 @@ import (
 )
 
 const HANDLER_TIMEOUT = time.Second * 10
-const HANDLER_KEEPALIVE = time.Second * 5
 
 var hasher hash.Hash
 func init() {
@@ -47,7 +46,6 @@ type Cmd struct {
 	decoder *json.Decoder
 	lastHandle time.Time
 	Timeout time.Duration
-	Keepalive time.Duration
 }
 func (self *Cmd) String() string {
 	pid, running := self.Pid()
@@ -102,12 +100,6 @@ func (self *Cmd) timeout() time.Duration {
 	} 
 	return self.Timeout
 }
-func (self *Cmd) keepalive() time.Duration {
-	if self.Keepalive == 0 {
-		return HANDLER_KEEPALIVE
-	}
-	return self.Keepalive
-}
 func (self *Cmd) Handle(i, o interface{}) error {
 	if _, running := self.Pid(); !running {
 		return self.reHandle(i, o)
@@ -126,7 +118,7 @@ func (self *Cmd) Handle(i, o interface{}) error {
 	}
 	go func() {
 		<- time.After(self.timeout())
-		if time.Now().Sub(self.lastHandle) > self.keepalive() {
+		if time.Now().Sub(self.lastHandle) > self.timeout() {
 			self.Kill()
 		}
 	}()
