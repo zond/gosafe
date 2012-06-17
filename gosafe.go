@@ -124,6 +124,22 @@ func (self *Compiler) Check(file string) error {
 	return nil
 }
 func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
+	cmd, err = self.CommandFile(file)
+	if err != nil {
+		return nil, err
+	}
+	cmd.Start()
+	return cmd, nil
+}
+func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
+	cmd, err = self.Command(s)
+	if err != nil {
+		return nil, err
+	} 
+	cmd.Start()
+	return cmd, nil
+}
+func (self *Compiler) CommandFile(file string) (cmd *Cmd, err error) {
 	tools.TimeIn("RunFile")
 	defer tools.TimeOut("RunFile")
 	compiled, err := self.Compile(file)
@@ -131,10 +147,9 @@ func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 		return nil, err
 	} 
 	cmd = &Cmd{Binary: compiled}
-	cmd.Start()
 	return cmd, nil
 }
-func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
+func (self *Compiler) Command(s string) (cmd *Cmd, err error) {
 	tools.TimeIn("Run")
 	defer tools.TimeOut("Run")
 	output := path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe.go", self.shorten(s)))
@@ -150,7 +165,7 @@ func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 	if err != nil {
 		return nil, err
 	}
-	return self.RunFile(file.Name())
+	return self.CommandFile(file.Name())
 }
 func (self *Compiler) Compile(file string) (output string, err error) {
 	tools.TimeIn("Compile")
