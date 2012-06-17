@@ -129,6 +129,7 @@ func (self *Cmd) Start() error {
 	if self.Stdout, err = self.Cmd.StdoutPipe(); err != nil {
 		return err
 	}
+	self.Cmd.Stderr = os.Stderr
 	if err := self.Cmd.Start(); err != nil {
 		return err
 	}
