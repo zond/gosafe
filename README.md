@@ -14,4 +14,4 @@ See https://github.com/zond/gosafe/blob/master/examples/example.go
 
 ## More
 
-Use `JSONChannel` in https://github.com/zond/gosafety to communicate with the child processes. See https://github.com/zond/gosafe/blob/master/testfiles/test3.go for an example.
+Use `gosafety.Stdin()`, `gosafety.Stdout()` and `gosafety.Stderr()` in https://github.com/zond/gosafety to communicate with the child processes via structured data. See https://github.com/zond/gosafe/blob/master/testfiles/test3.go for an example.
