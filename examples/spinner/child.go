@@ -5,7 +5,6 @@ import (
 	"github.com/zond/gosafe/child"
 	"fmt"
 	"time"
-	"os"
 )
 
 func main() {
@@ -21,7 +20,6 @@ func main() {
 			resp["rand"] = fmt.Sprint(n)
 			json_out.Encode(resp)
 		} else {
-			fmt.Fprintln(os.Stderr, "when decoding", err)
 			return
 		}
 		n ++
