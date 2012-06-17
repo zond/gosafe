@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"hash"
+	"encoding/json"
 	"os/exec"
 	"path"
 	"os"
@@ -39,6 +40,58 @@ type Cmd struct {
 	Stdin io.WriteCloser
 	Stdout io.Reader
 	Stderr io.Reader
+	encoder *json.Encoder
+	decoder *json.Decoder
+	lastHandle time.Time
+}
+func (self *Cmd) String() string {
+	pid, running := self.Pid()
+	var s string
+	if running {
+		s = fmt.Sprint(pid)
+	} else {
+		s = "dead"
+	}
+	return fmt.Sprintf("<Cmd %v %v>", self.Binary, s)
+}
+func (self *Cmd) Encode(i interface{}) error {
+	if self.encoder == nil {
+		self.encoder = json.NewEncoder(self.Stdin)
+	}
+	return self.encoder.Encode(i)
+}
+func (self *Cmd) Decode(i interface{}) error {
+	if self.decoder == nil {
+		self.decoder = json.NewDecoder(self.Stdout)
+	}
+	return self.decoder.Decode(i)
+}
+func (self *Cmd) Pid() (int, bool) {
+	if self.Cmd == nil {
+		return 0, false
+	}
+	if self.Cmd.Process == nil {
+		return 0, false
+	}
+	if proc, err := os.FindProcess(self.Cmd.Process.Pid); err == nil {
+		return proc.Pid, true
+	} 
+	return 0, false
+}
+func (self *Cmd) Handle(i, o interface{}) error {
+	if _, running := self.Pid(); running {
+		err := self.Encode(i)
+		if err != nil {
+			return err
+		}
+		err = self.Decode(&o)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	self.Start()
+	return self.Handle(i, o)
 }
 func (self *Cmd) Start() error {
 	self.Cmd = exec.Command(self.Binary)

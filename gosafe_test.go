@@ -6,7 +6,6 @@ import (
 	"github.com/zond/tools"
 	"testing"
 	"fmt"
-	"encoding/json"
 	"io/ioutil"
 	"bytes"
 	"os"
@@ -179,14 +178,12 @@ func TestGosafety(t *testing.T) {
 	f := "testfiles/test3.go"
 	cmd, err := c.RunFile(f)
 	if err == nil {
-		outj := json.NewEncoder(cmd.Stdin)
-		inj := json.NewDecoder(cmd.Stdout)
 		done := make(chan bool)
 		data := make(map[string]interface{})
 		data["yo"] = "who's in the house?"
 		go func() {
 			var indata interface{}
-			if inj.Decode(&indata); err == nil {
+			if cmd.Decode(&indata); err == nil {
 				if injson, ok := indata.(map[string]interface{}); ok {
 					data["returning"] = true
 					if len(injson) == len(data) {
@@ -205,7 +202,7 @@ func TestGosafety(t *testing.T) {
 			done <- true
 			cmd.Stdin.Close()
 		}()
-		if err = outj.Encode(data); err != nil {
+		if err = cmd.Encode(data); err != nil {
 			t.Error(f, "should get some json, got", err)
 		}
 		<- done
