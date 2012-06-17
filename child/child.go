@@ -12,6 +12,3 @@ func Stdin() *json.Decoder {
 func Stdout() *json.Encoder {
 	return json.NewEncoder(os.Stdout)
 }
-func Stderr() *json.Encoder {
-	return json.NewEncoder(os.Stderr)
-}
