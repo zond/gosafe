@@ -42,6 +42,7 @@ type Cmd struct {
 	Cmd *exec.Cmd
 	Stdin io.WriteCloser
 	Stdout io.Reader
+	Stderr io.Writer
 	encoder *json.Encoder
 	decoder *json.Decoder
 	lastHandle time.Time
@@ -129,7 +130,11 @@ func (self *Cmd) Start() error {
 	if self.Stdout, err = self.Cmd.StdoutPipe(); err != nil {
 		return err
 	}
-	self.Cmd.Stderr = os.Stderr
+	if self.Stderr == nil {
+		self.Cmd.Stderr = os.Stderr
+	} else {
+		self.Cmd.Stderr = self.Stderr
+	}
 	if err := self.Cmd.Start(); err != nil {
 		return err
 	}
