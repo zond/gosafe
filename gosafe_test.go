@@ -2,10 +2,9 @@
 package gosafe
 
 import (
-	"time"
 	"github.com/zond/tools"
+	"reflect"
 	"testing"
-	"fmt"
 	"io/ioutil"
 	"bytes"
 	"os"
@@ -131,25 +130,140 @@ func TestSpeedString(t *testing.T) {
 	tools.TimeClear()
 	c := NewCompiler()
 	c.Allow("fmt")
-	start := time.Now()
 	n := 10
 	s := "package main\nimport \"fmt\"\nfunc main() { fmt.Print(\"teststring\") }\n"
 	for i := 0; i < n; i++ {
 		runStringTest(t, c, s, true, "", "teststring", "")
 	}
-	fmt.Println(n, "string runs takes", time.Now().Sub(start))
 }
 
 func TestSpeed(t *testing.T) {
 	tools.TimeClear()
 	c := NewCompiler()
 	c.Allow("fmt")
-	start := time.Now()
 	n := 10
 	for i := 0; i < n; i++ {
 		runFileTest(t, c, "testfiles/test1.go", true, "", "test1.go", "")
 	}
-	fmt.Println(n, "file runs takes", time.Now().Sub(start))
+}
+
+func mapTest(t *testing.T, i1, i2 interface{}) {
+	if m1, ok := i1.(map[string]interface{}); ok {
+		if m2, ok := i2.(map[string]interface{}); ok {
+			if len(m1) == len(m2) {
+				for k, v1 := range m1 {
+					if v2, ok := m2[k]; !ok || !reflect.DeepEqual(v1, v2) {
+						t.Error("expected ", m1, " but got ", m2)
+					}
+				}
+			} else {
+				t.Error("expected ", m1, " but got ", m2)
+			}
+		} else {
+			t.Error("expected two maps, but got ", i1, " and ", i2)
+		}
+	} else {
+		t.Error("expected two maps, but got ", i1, " and ", i2)
+	}
+}
+
+
+
+func TestHandling(t *testing.T) {
+	c := NewCompiler()
+	c.Allow("github.com/zond/gosafety")
+	s := "testfiles/test3.go"
+	cmd, err := c.CommandFile(s)
+	if err == nil {
+		handleTest(t, cmd)
+		handleTest(t, cmd)
+		handleTest(t, cmd)
+		handleTest(t, cmd)
+	} else {
+		t.Error(s, "should compile, but got", err)
+	}
+}
+
+func handleTest(t *testing.T, cmd *Cmd) {
+	data := make(map[string]interface{})
+	data["yo"] = "who's in the house?"
+	var resp interface{}
+	err := cmd.Handle(data, &resp)
+	if err == nil {
+		data["returning"] = true
+		mapTest(t, data, resp)
+	} else {
+		t.Error(cmd.Binary, "should handle", data, ", but got", err)
+	}
+}
+
+func continuousHandleTest(t *testing.T, cmd *Cmd, ti interface{}, ni map[interface{}]bool) {
+	data := make(map[string]interface{})
+	data["yo"] = "who's in the house?"
+	var resp interface{}
+	err := cmd.Handle(data, &resp)
+	if err == nil {
+		if m, ok := resp.(map[string]interface{}); ok {
+			if len(m) == 4 {
+				if reflect.DeepEqual(ti, m["t"]) {
+					if _, ok := ni[m["n"]]; ok {
+						t.Error("handling should give a map with a unique 'n' (have ", ni, "), but got", m)
+					} else {
+						ni[m["n"]] = true
+					}
+				} else {
+					t.Error("handling should give a map with 't'", ti, "but got", m["t"])
+				}
+			} else {
+				t.Error("handling should give a map of size 4, got ", m)
+			}
+		} else {
+			t.Error("handling should give a map, got", resp)
+		}
+	} else {
+		t.Error("expected handling, got", err)
+	}
+}
+
+func TestContinuousHandling(t *testing.T) {
+	c := NewCompiler()
+	c.Allow("github.com/zond/gosafety")
+	c.Allow("math/rand")
+	c.Allow("time")
+	c.Allow("fmt")
+	s := "testfiles/test4.go"
+	cmd, err := c.CommandFile(s)
+	if err == nil {
+		data := make(map[string]interface{})
+		data["yo"] = "who's in the house?"
+		var resp interface{}
+		err := cmd.Handle(data, &resp)
+		var ti interface{}
+		ni := make(map[interface{}]bool)
+		if err == nil {
+			if m, ok := resp.(map[string]interface{}); ok {
+				if len(m) == 4 {
+					ti = m["t"]
+					ni[m["n"]] = true
+					if m["yo"] != "who's in the house?" {
+						t.Error(s, "should generate a map based on", data, " but got", m)
+					}
+					continuousHandleTest(t, cmd, ti, ni)
+					continuousHandleTest(t, cmd, ti, ni)
+					continuousHandleTest(t, cmd, ti, ni)
+					continuousHandleTest(t, cmd, ti, ni)
+				} else {
+					t.Error(s, "should generate maps of len 4, but got", m)
+				}
+			} else {
+				t.Error(s, "should generate maps, but got", resp)
+			}
+		} else {
+			t.Error(s, "should handle", data, "but got", err)
+		}
+	} else {
+		t.Error(s, "should compile, but got", err)
+	}
 }
 
 func TestRepeatedRuns(t *testing.T) {
@@ -186,13 +300,7 @@ func TestGosafety(t *testing.T) {
 			if cmd.Decode(&indata); err == nil {
 				if injson, ok := indata.(map[string]interface{}); ok {
 					data["returning"] = true
-					if len(injson) == len(data) {
-						if injson["yo"] != "who's in the house?" || injson["returning"] != true {
-							t.Error(f, "1 should send", data, "got", injson)
-						}
-					} else {
-						t.Error(f, "2 should send", data, "got", injson)
-					}
+					mapTest(t, data, injson)
 				} else {
 					t.Error(f, "should send us a map[string]interface{}, got", indata)
 				}

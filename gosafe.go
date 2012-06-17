@@ -90,27 +90,33 @@ func (self *Cmd) Pid() (int, bool) {
 	} 
 	return 0, false
 }
+func (self *Cmd) reHandle(i, o interface{}) error {
+	self.Start()
+	return self.Handle(i, o)
+}
 func (self *Cmd) Handle(i, o interface{}) error {
+	if _, running := self.Pid(); !running {
+		return self.reHandle(i, o)
+	}
+	self.lastHandle = time.Now()
+	err := self.Encode(i)
+	if err != nil {
+		return err
+	}
+	err = self.Decode(&o)
+	if err != nil {
+		if err.Error() == "EOF" {
+			return self.reHandle(i, o)
+		}
+		return err
+	}
 	go func() {
 		<- time.After(HANDLER_WIPE)
 		if time.Now().Sub(self.lastHandle) > HANDLER_RESCUE {
 			self.Kill()
 		}
 	}()
-	if _, running := self.Pid(); running {
-		self.lastHandle = time.Now()
-		err := self.Encode(i)
-		if err != nil {
-			return err
-		}
-		err = self.Decode(&o)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	self.Start()
-	return self.Handle(i, o)
+	return nil
 }
 func (self *Cmd) Start() error {
 	self.Cmd = exec.Command(self.Binary)
