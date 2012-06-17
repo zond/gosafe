@@ -4,6 +4,7 @@ package main
 import (
 	"github.com/zond/gosafe"
 	"fmt"
+	"io/ioutil"
 )
 
 func main() {
@@ -14,8 +15,7 @@ func main() {
 	c.Allow("fmt")
 	cmd, err = c.Run("package main\nimport (\n\"fmt\"\n\"math\"\n)\nfunc main() { fmt.Println(math.Sin(10)) }\n")
 	fmt.Println(cmd, ", ", err)
-	close(cmd.Stdin)
-	for b := range cmd.Stdout {
-		fmt.Print(string(b))
-	}
+	cmd.Stdin.Close()
+	b, _ := ioutil.ReadAll(cmd.Stdout)
+	fmt.Print(string(b))
 }
