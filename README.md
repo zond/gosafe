@@ -23,3 +23,7 @@ See https://github.com/zond/gosafe/blob/master/testfiles/test3.go for an example
 Use `gosafe.Compiler#Command`, `gosafe.Compiler#CommandFile` and `gosafe.Cmd#Handle` to create child process handlers that will stay dormant until needed (when `gosafe.Cmd#Handle` is called), and die again after a customizable timeout without new messages.
 
 See https://github.com/zond/gosafe/tree/master/examples/spinner for an example.
+
+## Documentation
+
+http://go.pkgdoc.org/github.com/zond/gosafe
