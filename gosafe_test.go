@@ -1,14 +1,13 @@
-
 package gosafe
 
 import (
-	"github.com/zond/tools"
-	"reflect"
-	"testing"
-	"io/ioutil"
 	"bytes"
+	"github.com/zond/tools"
+	"io/ioutil"
 	"os"
+	"reflect"
 	"strings"
+	"testing"
 )
 
 func compileTest(t *testing.T, c *Compiler, file string, work bool) {
@@ -53,7 +52,6 @@ func runFileTest(t *testing.T, c *Compiler, f string, work bool, stdin, stdout s
 	runTest(t, c, f, work, stdin, stdout, true)
 }
 
-
 func runTest(t *testing.T, c *Compiler, data string, work bool, stdin, stdout string, file bool) {
 	tools.TimeIn("runTest")
 	defer tools.TimeOut("runTest")
@@ -86,7 +84,7 @@ func cmdTest(t *testing.T, cmd *Cmd, err error, data string, work bool, stdin, s
 		}()
 		cmd.Stdin.Write([]byte(stdout))
 		cmd.Stdin.Close()
-		<- done
+		<-done
 		outs := strings.Trim(string(outbuffer.Bytes()), "\x000")
 		if outs != stdout {
 			t.Errorf("%v should generate stdout %v (%v) but generated %v (%v)\n", data, stdout, []byte(stdout), outs, []byte(outs))
@@ -96,7 +94,7 @@ func cmdTest(t *testing.T, cmd *Cmd, err error, data string, work bool, stdin, s
 
 func TestDisallowedRunFmt(t *testing.T) {
 	c := NewCompiler()
-	runFileTest(t, c, "testfiles/test1.go", false, "", "")
+	runFileTest(t, c, "testdata/test1.go", false, "", "")
 }
 
 func TestDisallowedRunString(t *testing.T) {
@@ -129,7 +127,7 @@ func TestSpeed(t *testing.T) {
 	c.Allow("fmt")
 	n := 10
 	for i := 0; i < n; i++ {
-		runFileTest(t, c, "testfiles/test1.go", true, "", "test1.go")
+		runFileTest(t, c, "testdata/test1.go", true, "", "test1.go")
 	}
 }
 
@@ -153,12 +151,10 @@ func mapTest(t *testing.T, i1, i2 interface{}) {
 	}
 }
 
-
-
 func TestHandling(t *testing.T) {
 	c := NewCompiler()
 	c.Allow("github.com/zond/gosafe/child")
-	s := "testfiles/test3.go"
+	s := "testdata/test3.go"
 	cmd, err := c.CommandFile(s)
 	if err == nil {
 		handleTest(t, cmd)
@@ -217,7 +213,7 @@ func TestContinuousHandling(t *testing.T) {
 	c.Allow("math/rand")
 	c.Allow("time")
 	c.Allow("fmt")
-	s := "testfiles/test4.go"
+	s := "testdata/test4.go"
 	cmd, err := c.CommandFile(s)
 	if err == nil {
 		data := make(map[string]interface{})
@@ -275,7 +271,7 @@ func TestGosafety(t *testing.T) {
 	c.Allow("os")
 	c.Allow("fmt")
 	c.Allow("github.com/zond/gosafe/child")
-	f := "testfiles/test3.go"
+	f := "testdata/test3.go"
 	cmd, err := c.RunFile(f)
 	if err == nil {
 		done := make(chan bool)
@@ -299,7 +295,7 @@ func TestGosafety(t *testing.T) {
 		if err = cmd.Encode(data); err != nil {
 			t.Error(f, "should get some json, got", err)
 		}
-		<- done
+		<-done
 	} else {
 		t.Error(f, "should be runnable, but got", err)
 	}
@@ -308,30 +304,29 @@ func TestGosafety(t *testing.T) {
 func TestAllowedRunFmt(t *testing.T) {
 	c := NewCompiler()
 	c.Allow("fmt")
-	runFileTest(t, c, "testfiles/test1.go", true, "", "test1.go")
+	runFileTest(t, c, "testdata/test1.go", true, "", "test1.go")
 }
 
 func TestAllowedFmt(t *testing.T) {
 	c := NewCompiler()
 	c.Allow("fmt")
-	compileTest(t, c, "testfiles/test1.go", true)
+	compileTest(t, c, "testdata/test1.go", true)
 }
 
 func TestDisallowedFmt(t *testing.T) {
 	c := NewCompiler()
-	compileTest(t, c, "testfiles/test1.go", false)
+	compileTest(t, c, "testdata/test1.go", false)
 }
 
 func TestAllowedC(t *testing.T) {
 	c := NewCompiler()
 	c.Allow("fmt")
 	c.Allow("C")
-	compileTest(t, c, "testfiles/test2.go", true)
+	compileTest(t, c, "testdata/test2.go", true)
 }
 
 func TestDisallowedC(t *testing.T) {
 	c := NewCompiler()
 	c.Allow("fmt")
-	compileTest(t, c, "testfiles/test2.go", false)
+	compileTest(t, c, "testdata/test2.go", false)
 }
-

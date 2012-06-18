@@ -1,52 +1,72 @@
-
+/*
+ A Go tool to safely compile and run Go programs by only allowing importing of whitelisted packages.
+ 
+ Use gosafe.Compiler.Allow(string) to allow given packages, then run code with gosafe.Compiler.Run(string) or gosafe.Compiler.RunFile(string).
+ 
+ Use child.Stdin(), child.Stdout() and child.Stderr() in github.com/zond/gosafe/child to communicate with the child processes via structured data.
+ 
+ Use gosafe.Compiler.Command(string), gosafe.Compiler.CommandFile(string) and gosafe.Cmd.Handle(interface{}, interface{} to create child process handlers that will stay dormant until needed (when gosafe.Cmd.Handle(...) is called), and die again after a customizable timeout without new messages.
+ */
 package gosafe
 
 import (
-	"github.com/zond/tools"
-	"fmt"
-	"go/parser"
-	"go/token"
-	"go/ast"
 	"bytes"
 	"crypto/sha1"
-	"hash"
 	"encoding/json"
+	"fmt"
+	"github.com/zond/tools"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"hash"
+	"io"
+	"os"
 	"os/exec"
 	"path"
-	"os"
 	"time"
-	"io"
 )
 
 const HANDLER_TIMEOUT = time.Second * 10
 
 var hasher hash.Hash
+
 func init() {
 	hasher = sha1.New()
 }
 
 type visitor func(ast.Node)
+
 func (self visitor) Visit(node ast.Node) ast.Visitor {
 	self(node)
 	return self
 }
 
 type Error string
+
 func (self Error) Error() string {
 	return string(self)
 }
 
+/*
+ A wrapper around os/exec.Cmd that provides ready io.Readers and io.Writers for communicating with the contained process.
+
+ Also provides gosafe.Cmd.Encode(interface{}) and gosafe.Cmd.Decode(interface{}) that sends/receives structured data to the child process.
+
+ Use gosafe.Cmd.Handle() to spin up child processes on demand. If they continue living and handling messages after responding to the first call, they will keep on living and handling incoming messages until they get killed from timeout.
+*/
 type Cmd struct {
-	Binary string
-	Cmd *exec.Cmd
-	Stdin io.WriteCloser
-	Stdout io.Reader
-	Stderr io.Writer
-	encoder *json.Encoder
-	decoder *json.Decoder
+	Binary    string
+	Cmd       *exec.Cmd
+	Stdin     io.WriteCloser
+	Stdout    io.Reader
+	Stderr    io.Writer
+	encoder   *json.Encoder
+	decoder   *json.Decoder
 	lastEvent time.Time
-	Timeout time.Duration
+	// The amount of time idle child processes are allowed to live without handling messages.
+	Timeout   time.Duration
 }
+
 func (self *Cmd) String() string {
 	pid, running := self.Pid()
 	var s string
@@ -57,18 +77,21 @@ func (self *Cmd) String() string {
 	}
 	return fmt.Sprintf("<Cmd %v %v>", self.Binary, s)
 }
+// Send i to the child process stdin using a json.Encoder
 func (self *Cmd) Encode(i interface{}) error {
 	if self.encoder == nil {
 		self.encoder = json.NewEncoder(self.Stdin)
 	}
 	return self.encoder.Encode(i)
 }
+// Receive i from the child process stdout using a json.Decoder
 func (self *Cmd) Decode(i interface{}) error {
 	if self.decoder == nil {
 		self.decoder = json.NewDecoder(self.Stdout)
 	}
 	return self.decoder.Decode(i)
 }
+// Kill the child process if it is alive.
 func (self *Cmd) Kill() error {
 	if self.Cmd == nil {
 		return nil
@@ -78,6 +101,7 @@ func (self *Cmd) Kill() error {
 	}
 	return self.Cmd.Process.Kill()
 }
+// Get the pid of the child process, and whether it was alive.
 func (self *Cmd) Pid() (int, bool) {
 	if self.Cmd == nil {
 		return 0, false
@@ -87,7 +111,7 @@ func (self *Cmd) Pid() (int, bool) {
 	}
 	if proc, err := os.FindProcess(self.Cmd.Process.Pid); err == nil {
 		return proc.Pid, true
-	} 
+	}
 	return 0, false
 }
 func (self *Cmd) reHandle(i, o interface{}) error {
@@ -97,9 +121,11 @@ func (self *Cmd) reHandle(i, o interface{}) error {
 func (self *Cmd) timeout() time.Duration {
 	if self.Timeout == 0 {
 		return HANDLER_TIMEOUT
-	} 
+	}
 	return self.Timeout
 }
+// Start the child process if it is dead, send i to the child process using Encode and fill o with the response using Decode.
+// Will create a timer that kills this process after gosafe.Cmd.Timeout has passed if no new messages arrive.
 func (self *Cmd) Handle(i, o interface{}) error {
 	if _, running := self.Pid(); !running {
 		return self.reHandle(i, o)
@@ -120,7 +146,7 @@ func (self *Cmd) Handle(i, o interface{}) error {
 		return err
 	}
 	go func() {
-		<- time.After(self.timeout())
+		<-time.After(self.timeout())
 		if time.Now().Sub(self.lastEvent) > self.timeout() {
 			self.lastEvent = time.Now()
 			if err := self.Kill(); err != nil {
@@ -130,6 +156,7 @@ func (self *Cmd) Handle(i, o interface{}) error {
 	}()
 	return nil
 }
+// Clear all child process-specific state of this Cmd and restart the process.
 func (self *Cmd) Start() error {
 	self.Cmd = exec.Command(self.Binary)
 	self.encoder = nil
@@ -158,14 +185,17 @@ func (self *Cmd) Start() error {
 	return nil
 }
 
+// A compiler of potentially unsafe code.
 type Compiler struct {
-	allowed map[string]bool
-	okChecked map[string]time.Time
+	allowed    map[string]bool
+	okChecked  map[string]time.Time
 	okCompiled map[string]time.Time
 }
+
 func NewCompiler() *Compiler {
 	return &Compiler{make(map[string]bool), make(map[string]time.Time), make(map[string]time.Time)}
 }
+// Allow the golang package p in code compiled by this gosafe.Compiler.
 func (self *Compiler) Allow(p string) {
 	self.allowed[fmt.Sprint("\"", p, "\"")] = true
 }
@@ -177,6 +207,7 @@ func (self *Compiler) shorten(s string) string {
 	hasher.Write([]byte(s))
 	return tools.NewBigIntBytes(hasher.Sum(nil)).BaseString(tools.MAX_BASE)
 }
+// Check if this gosafe.Compiler allows the given file to be compiled.
 func (self *Compiler) Check(file string) error {
 	fstat, err := os.Stat(file)
 	if err != nil {
@@ -187,7 +218,7 @@ func (self *Compiler) Check(file string) error {
 		// Was checked before, and after the file was last changed
 		return nil
 	}
-	var disallowed []string 
+	var disallowed []string
 	tree, _ := parser.ParseFile(token.NewFileSet(), file, nil, 0)
 	ast.Walk(visitor(func(node ast.Node) {
 		if importNode, isImport := node.(*ast.ImportSpec); isImport {
@@ -203,7 +234,7 @@ func (self *Compiler) Check(file string) error {
 		var buffer bytes.Buffer
 		for index, pkg := range disallowed {
 			fmt.Fprint(&buffer, pkg)
-			if index < len(disallowed) - 1 {
+			if index < len(disallowed)-1 {
 				fmt.Fprint(&buffer, ", ")
 			}
 		}
@@ -214,6 +245,7 @@ func (self *Compiler) Check(file string) error {
 	self.okChecked[file] = time.Now()
 	return nil
 }
+// Create a gosafe.Cmd encapsulating the given file, start it and return it.
 func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 	cmd, err = self.CommandFile(file)
 	if err != nil {
@@ -222,22 +254,25 @@ func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 	cmd.Start()
 	return cmd, nil
 }
+// Create a gosafe.Cmd encapsulating the given code, start it and return it.
 func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 	cmd, err = self.Command(s)
 	if err != nil {
 		return nil, err
-	} 
+	}
 	cmd.Start()
 	return cmd, nil
 }
+// Create a gosafe.Cmd encapsulating the given file.
 func (self *Compiler) CommandFile(file string) (cmd *Cmd, err error) {
 	compiled, err := self.Compile(file)
 	if err != nil {
 		return nil, err
-	} 
+	}
 	cmd = &Cmd{Binary: compiled}
 	return cmd, nil
 }
+// Create a gosafe.Cmd encapsulating the given code.
 func (self *Compiler) Command(s string) (cmd *Cmd, err error) {
 	output := path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe.go", self.shorten(s)))
 	file, err := os.Create(output)
@@ -254,6 +289,7 @@ func (self *Compiler) Command(s string) (cmd *Cmd, err error) {
 	}
 	return self.CommandFile(file.Name())
 }
+// Compile the given file to a temporary file if deemed safe, and return the path to the resulting binary.
 func (self *Compiler) Compile(file string) (output string, err error) {
 	output = path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe", self.shorten(file)))
 	err = self.CompileTo(file, output)
@@ -262,6 +298,7 @@ func (self *Compiler) Compile(file string) (output string, err error) {
 	}
 	return output, nil
 }
+// Compile the given file to a given path file if deemed safe.
 func (self *Compiler) CompileTo(file, output string) error {
 	fstat, err := os.Stat(file)
 	if err != nil {
