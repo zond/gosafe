@@ -6,6 +6,8 @@
  Use child.Stdin(), child.Stdout() and child.Stderr() in github.com/zond/gosafe/child to communicate with the child processes via structured data.
  
  Use gosafe.Compiler.Command(string), gosafe.Compiler.CommandFile(string) and gosafe.Cmd.Handle(interface{}, interface{} to create child process handlers that will stay dormant until needed (when gosafe.Cmd.Handle(...) is called), and die again after a customizable timeout without new messages.
+
+ Go to https://github.com/zond/gosafe for the source, of course.
  */
 package gosafe
 
