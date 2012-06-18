@@ -178,8 +178,6 @@ func (self *Compiler) shorten(s string) string {
 	return tools.NewBigIntBytes(hasher.Sum(nil)).BaseString(tools.MAX_BASE)
 }
 func (self *Compiler) Check(file string) error {
-	tools.TimeIn("Check")
-	defer tools.TimeOut("Check")
 	fstat, err := os.Stat(file)
 	if err != nil {
 		// Problem stating file
@@ -189,8 +187,6 @@ func (self *Compiler) Check(file string) error {
 		// Was checked before, and after the file was last changed
 		return nil
 	}
-	tools.TimeIn("actual Check")
-	defer tools.TimeOut("actual Check")
 	var disallowed []string 
 	tree, _ := parser.ParseFile(token.NewFileSet(), file, nil, 0)
 	ast.Walk(visitor(func(node ast.Node) {
@@ -235,8 +231,6 @@ func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 	return cmd, nil
 }
 func (self *Compiler) CommandFile(file string) (cmd *Cmd, err error) {
-	tools.TimeIn("RunFile")
-	defer tools.TimeOut("RunFile")
 	compiled, err := self.Compile(file)
 	if err != nil {
 		return nil, err
@@ -245,8 +239,6 @@ func (self *Compiler) CommandFile(file string) (cmd *Cmd, err error) {
 	return cmd, nil
 }
 func (self *Compiler) Command(s string) (cmd *Cmd, err error) {
-	tools.TimeIn("Run")
-	defer tools.TimeOut("Run")
 	output := path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe.go", self.shorten(s)))
 	file, err := os.Create(output)
 	if err != nil {
@@ -263,8 +255,6 @@ func (self *Compiler) Command(s string) (cmd *Cmd, err error) {
 	return self.CommandFile(file.Name())
 }
 func (self *Compiler) Compile(file string) (output string, err error) {
-	tools.TimeIn("Compile")
-	defer tools.TimeOut("Compile")
 	output = path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe", self.shorten(file)))
 	err = self.CompileTo(file, output)
 	if err != nil {
@@ -273,8 +263,6 @@ func (self *Compiler) Compile(file string) (output string, err error) {
 	return output, nil
 }
 func (self *Compiler) CompileTo(file, output string) error {
-	tools.TimeIn("CompileTo")
-	defer tools.TimeOut("CompileTo")
 	fstat, err := os.Stat(file)
 	if err != nil {
 		// Problem stating file
@@ -288,8 +276,6 @@ func (self *Compiler) CompileTo(file, output string) error {
 	if err != nil {
 		return err
 	}
-	tools.TimeIn("actual CompileTo")
-	defer tools.TimeOut("actual CompileTo")
 	var stderr bytes.Buffer
 	args := []string{"build", "-ldflags", fmt.Sprint("-o ", output), file}
 	cmd := exec.Command("go", args...)
