@@ -24,6 +24,14 @@ Use `gosafe.Compiler#Command`, `gosafe.Compiler#CommandFile` and `gosafe.Cmd#Han
 
 See https://github.com/zond/gosafe/tree/master/examples/spinner for an example.
 
+## On demand child processes with transparent method calling and callbacks to the mother process
+
+Use `child.NewServer`, `child.Server#Register` and `child.Server#Start` to create child processes serving many different types of calls from the parent process.
+
+Then use `gosafe.Cmd#Register` to register callbacks that the child processes can use to access data outside their runtime (such as private persistence providers for example) before responding with their final return value.
+
+See https://github.com/zond/gosafe/blob/master/examples/server/server.go for an example.
+
 ## Documentation
 
 http://go.pkgdoc.org/github.com/zond/gosafe
