@@ -136,11 +136,11 @@ func (self *Cmd) timeout() time.Duration {
 }
 // Register the given name and Service function to serve callbacks from the child process.
 //
-// func get(args... interface{}) interface{} {
-//   return MyDatabase.Get(args[0])
-// }
+//   func get(args... interface{}) interface{} {
+//     return MyDatabase.Get(args[0])
+//   }
 //
-// cmd.Register("get", get)
+//   cmd.Register("get", get)
 //
 // Now the child processes can use this method via child.Call("get", key)
 func (self *Cmd) Register(name string, service child.Service) *Cmd {
