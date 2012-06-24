@@ -3,7 +3,6 @@ package gosafe
 import (
 	"bytes"
 	"github.com/zond/tools"
-	child "./child"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -285,23 +284,29 @@ func TestChildServer(t *testing.T) {
 	f := "testdata/test5.go"
 	cmd, err := c.CommandFile(f)
 	if err == nil {
-		call := child.Call{"sin", child.Args{0.5}}
-		response := child.Response{}
-		if err = cmd.Handle(call, &response); err == nil {
-			response = child.Response{}
-			if err = cmd.Handle(call, &response); err == nil {
-				if f, ok := response.Payload.(float64); ok {
- 					if f != math.Sin(0.5) {
-						t.Error(f, "should return math.Sin(0.5) = ", math.Sin(0.5), "but got", f)
+		if response, err := cmd.Call("sin", 0.5); err == nil {
+			if f, ok := response.(float64); ok {
+				if f == math.Sin(0.5) {
+					if response, err = cmd.Call("sin", 0.3); err == nil {
+						if f, ok := response.(float64); ok {
+							if f == math.Sin(0.3) {
+							} else {
+								t.Error(f, "should return math.Sin(0.3) = ", math.Sin(0.3), "but got", f)
+							}
+						} else {
+							t.Error(f, "should return a float64, got", response)
+						}
+					} else {
+						t.Error(f, "should handle sin(0.3) but got", err)
 					}
 				} else {
-					t.Error(f, "should return a float64, got", response)
+					t.Error(f, "should return math.Sin(0.5) = ", math.Sin(0.5), "but got", f)
 				}
 			} else {
-				t.Error(f, "should handle", call, "but got", err)
+				t.Error(f, "should return a float64, got", response)
 			}
 		} else {
-			t.Error(f, "should handle", call, "but got", err)
+			t.Error(f, "should handle sin(0.5) but got", err)
 		}
 	} else {
 		t.Error(f, "should compile, but got", err)

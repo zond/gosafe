@@ -14,11 +14,13 @@ package gosafe
 import (
 	"bytes"
 	"crypto/sha1"
+	"./child"
 	"encoding/json"
 	"fmt"
 	"github.com/zond/tools"
 	"go/ast"
 	"go/parser"
+	"errors"
 	"go/token"
 	"hash"
 	"io"
@@ -126,6 +128,15 @@ func (self *Cmd) timeout() time.Duration {
 		return HANDLER_TIMEOUT
 	}
 	return self.Timeout
+}
+// Call will call one function registered via child.Server#Register and return its return value.
+func (self *Cmd) Call(name string, args... interface{}) (rval interface{}, err error) {
+	response := child.Response{}
+	self.Handle(child.Call{name, args}, &response)
+	if response.Type == child.Return {
+		return response.Payload, nil
+	}
+	return nil, errors.New(fmt.Sprint(response.Payload))
 }
 // Handle starts the child process if it is dead, sends i to the child process using Encode and receives o with the response using Decode.
 // Will create a timer that kills this process after gosafe.Cmd.Timeout has passed if no new messages arrive.
