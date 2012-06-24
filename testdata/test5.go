@@ -2,7 +2,6 @@ package main
 
 import (
 	child "../child"
-	"math"
 )
 
 func sin(args... interface{}) interface{} {
@@ -13,7 +12,11 @@ func sin(args... interface{}) interface{} {
 	if !ok {
 		panic("Only floats to 'sin'")
 	}
-	return math.Sin(f)
+	r, err := child.Call("sin", f)
+	if err != nil {
+		panic(err.Error())
+	}
+	return r
 }
 
 func main() {

@@ -284,6 +284,7 @@ func TestChildServer(t *testing.T) {
 	f := "testdata/test5.go"
 	cmd, err := c.CommandFile(f)
 	if err == nil {
+		cmd.Register("sin", sin)
 		if response, err := cmd.Call("sin", 0.5); err == nil {
 			if f, ok := response.(float64); ok {
 				if f == math.Sin(0.5) {

@@ -134,27 +134,49 @@ func (self *Cmd) timeout() time.Duration {
 	}
 	return self.Timeout
 }
+// Register the given name and Service function to serve callbacks from the child process.
+//
+// func get(args... interface{}) interface{} {
+//   return MyDatabase.Get(args[0])
+// }
+//
+// cmd.Register("get", get)
+//
+// Now the child processes can use this method via child.Call("get", key)
 func (self *Cmd) Register(name string, service child.Service) *Cmd {
 	self.server[name] = service
 	return self
 }
+func createRequest(response child.Response) (rval child.Request, err error) {
+	if call, ok := response.Payload.(map[string]interface{}); ok {
+		if x, ok := call["Name"]; ok {
+			if name, ok := x.(string); ok {
+				if x, ok = call["Args"]; ok {
+					if args, ok := x.([]interface{}); ok {
+						return child.Request{Name: name, Args: args}, nil
+					}
+				}
+			}
+		}
+	}
+	return child.Request{}, errors.New(fmt.Sprintf(child.NotProperRequest, response.Payload))
+}
 // Call will call one function registered via child.Server#Register and return its return value.
 func (self *Cmd) Call(name string, args... interface{}) (rval interface{}, err error) {
 	response := child.Response{}
-	self.Handle(child.Call{name, args}, &response)
+	self.Handle(child.Request{name, args}, &response)
 	for {
 		if response.Type == child.Return {
 			break
 		} else if response.Type == child.Error {
 			return nil, errors.New(fmt.Sprint(response.Payload))
 		} else if response.Type == child.Callback {
-			if call, ok := response.Payload.(child.Call); ok {
+			if request, err := createRequest(response); err == nil {
 				response = child.Response{}
-				self.Handle(self.server.Handle(call), &response)
+				self.Handle(self.server.Handle(request), &response)
 			} else {
-				err := fmt.Sprintf(child.NotProperCall, response.Payload)
 				self.Encode(child.Response{child.Error, err})
-				return nil, errors.New(err)
+				return nil, err
 			}
 		} else {
 			return nil, errors.New(fmt.Sprintf(child.UnknownResponseType, response))
