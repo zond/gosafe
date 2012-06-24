@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/zond/gosafe"
+	gosafe "../../"
 	"fmt"
 	"time"
 )
@@ -18,7 +18,7 @@ func fetch(cmd *gosafe.Cmd) {
 
 func main() {
 	c := gosafe.NewCompiler()
-	c.Allow("github.com/zond/gosafe/child")
+	c.Allow("../../child")
 	c.Allow("fmt")
 	c.Allow("time")
 	if cmd, err := c.CommandFile("child.go"); err == nil {
