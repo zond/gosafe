@@ -43,7 +43,7 @@ const (
 // NoSuchService is returned when there is no registered service of the wanted name.
 const NoSuchService = "No such service: %s"
 
-// NotProperRequest is returned if the server process make a callback home with something other than a nested Call.
+// NotProperRequest is returned if the server process make a callback home with a Payload other than a nested Request.
 const NotProperRequest = "Not proper request: %+v"
 
 // UnknownResponseType is returned if Responses have Type other than Error, Return or Callback.
