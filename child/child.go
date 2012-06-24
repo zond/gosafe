@@ -73,6 +73,17 @@ func (self Server) Start() {
 	go self.serve(done)
 	<-done
 }
+// Handle handles a single Call.
+func (self Server) Handle(c Call) Response {
+	if service, ok := self[c.Name]; ok {
+		if rval, err := service.callSafe(c.Args...); err == nil {
+			return Response{Return, rval}
+		} else {
+			return Response{Error, err}
+		}
+	}
+	return Response{Error, fmt.Sprintf(NoSuchService, c.Name)}
+}
 func (self Server) serve(c chan bool) {
 	defer func() {
 		close(c)
@@ -82,15 +93,7 @@ func (self Server) serve(c chan bool) {
 	for {
 		var call Call
 		if err := stdin.Decode(&call); err == nil {
-			if service, ok := self[call.Name]; ok {
-				if rval, err := service.callSafe(call.Args...); err == nil {
-					stdout.Encode(Response{Return, rval})
-				} else {
-					stdout.Encode(Response{Error, err})
-				}
-			} else {
-				stdout.Encode(Response{Error, fmt.Sprintf(NoSuchService, call.Name)})
-			}
+			stdout.Encode(self.Handle(call))
 		} else {
 			if err == io.EOF {
 				break

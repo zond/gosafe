@@ -65,6 +65,7 @@ type Cmd struct {
 	encoder   *json.Encoder
 	decoder   *json.Decoder
 	lastEvent time.Time
+	
 	// The amount of time idle child processes are allowed to live without handling messages.
 	Timeout   time.Duration
 }

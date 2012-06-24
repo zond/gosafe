@@ -267,6 +267,17 @@ func TestRepeatedRuns(t *testing.T) {
 	}
 }
 
+func sin(args... interface{}) interface{} {
+	if len(args) != 1 {
+		panic("Only one argument to 'sin'")
+	}
+	f, ok := args[0].(float64)
+	if !ok {
+		panic("Only floats to 'sin'")
+	}
+	return math.Sin(f)
+}
+
 func TestChildServer(t *testing.T) {
 	c := NewCompiler()
 	c.Allow("math")
