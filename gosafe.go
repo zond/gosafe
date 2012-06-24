@@ -59,15 +59,20 @@ func (self Error) Error() string {
  Use gosafe.Cmd.Handle() to spin up child processes on demand. If they continue living and handling messages after responding to the first call, they will keep on living and handling incoming messages until they get killed from timeout.
 */
 type Cmd struct {
+	// Binary is the path to the executable file represented by this Cmd
 	Binary    string
+	// Cmd is the os/exec.Cmd wrapped by this Cmd
 	Cmd       *exec.Cmd
+	// Stdin is the Stdin of the wrapped process
 	Stdin     io.WriteCloser
+	// Stdout is the Stdout of the wrapped process
 	Stdout    io.Reader
+	// Stderr is the Stderr of the wrapped process
 	Stderr    io.Writer
 	encoder   *json.Encoder
 	decoder   *json.Decoder
 	lastEvent time.Time
-	
+	server    child.Server
 	// The amount of time idle child processes are allowed to live without handling messages.
 	Timeout   time.Duration
 }
@@ -129,14 +134,33 @@ func (self *Cmd) timeout() time.Duration {
 	}
 	return self.Timeout
 }
+func (self *Cmd) Register(name string, service child.Service) *Cmd {
+	self.server[name] = service
+	return self
+}
 // Call will call one function registered via child.Server#Register and return its return value.
 func (self *Cmd) Call(name string, args... interface{}) (rval interface{}, err error) {
 	response := child.Response{}
 	self.Handle(child.Call{name, args}, &response)
-	if response.Type == child.Return {
-		return response.Payload, nil
+	for {
+		if response.Type == child.Return {
+			break
+		} else if response.Type == child.Error {
+			return nil, errors.New(fmt.Sprint(response.Payload))
+		} else if response.Type == child.Callback {
+			if call, ok := response.Payload.(child.Call); ok {
+				response = child.Response{}
+				self.Handle(self.server.Handle(call), &response)
+			} else {
+				err := fmt.Sprintf(child.NotProperCall, response.Payload)
+				self.Encode(child.Response{child.Error, err})
+				return nil, errors.New(err)
+			}
+		} else {
+			return nil, errors.New(fmt.Sprintf(child.UnknownResponseType, response))
+		}
 	}
-	return nil, errors.New(fmt.Sprint(response.Payload))
+	return response.Payload, nil
 }
 // Handle starts the child process if it is dead, sends i to the child process using Encode and receives o with the response using Decode.
 // Will create a timer that kills this process after gosafe.Cmd.Timeout has passed if no new messages arrive.
@@ -283,7 +307,7 @@ func (self *Compiler) CommandFile(file string) (cmd *Cmd, err error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd = &Cmd{Binary: compiled}
+	cmd = &Cmd{Binary: compiled, server: make(child.Server)}
 	return cmd, nil
 }
 // Command will return a gosafe.Cmd encapsulating the given code.

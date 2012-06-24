@@ -25,13 +25,20 @@ func Stdout() *json.Encoder {
 
 // These are the types of return data from a child.Server
 const (
-	Error = iota
+	invalid = iota
+	Error
 	Return
 	Callback
 )
 
 // NoSuchService is returned when there is no registered service of the wanted name.
 const NoSuchService = "No such service: %s"
+
+// NotProperCall is returned if the server process make a callback home with something other than a nested Call.
+const NotProperCall = "Not proper call: %+v"
+
+// UnknownResponseType is returned if Responses have Type other than Error, Return or Callback
+const UnknownResponseType = "Unknown response type: %+v"
 
 // Args is a shorthand for the array of interfaces used as arguments
 type Args []interface{}
