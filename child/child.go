@@ -82,6 +82,8 @@ func (self Service) callSafe(args... interface{}) (rval interface{}, err error) 
 // Server serves requests by listening to Stdin, running Services matching the Name of incoming Requests, and responding
 // with their return values.
 type Server map[string]Service
+// Register will register a Service with a given name so that Requests for the given name will result in the given
+// Service being run, and the resulting returnvalue returned.
 func (self Server) Register(name string, service Service) Server {
 	self[name] = service
 	return self
