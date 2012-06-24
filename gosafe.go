@@ -142,7 +142,7 @@ func (self *Cmd) Handle(i, o interface{}) error {
 	}
 	err = self.Decode(&o)
 	if err != nil {
-		if err.Error() == "EOF" {
+		if err == io.EOF {
 			return self.reHandle(i, o)
 		}
 		return err
@@ -316,12 +316,17 @@ func (self *Compiler) CompileTo(file, output string) error {
 		return err
 	}
 	var stderr bytes.Buffer
+	var stdout bytes.Buffer
 	args := []string{"build", "-ldflags", fmt.Sprint("-o ", output), file}
 	cmd := exec.Command("go", args...)
 	cmd.Stderr = &stderr
+	cmd.Stdout = &stdout
 	err = cmd.Run()
-	if len((&stderr).Bytes()) > 0 {
+	if len((stderr).Bytes()) > 0 {
 		return Error(string(stderr.Bytes()))
+	}
+	if len((stdout).Bytes()) > 0 {
+		return Error(string(stdout.Bytes()))
 	}
 	if err != nil {
 		return err

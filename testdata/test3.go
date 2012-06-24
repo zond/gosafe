@@ -10,7 +10,7 @@
 package main
 
 import (
-	"github.com/zond/gosafe/child"
+	child "../child"
 )
 
 func main() {

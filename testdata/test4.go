@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/zond/gosafe/child"
+	child "../child"
 	"math/rand"
 	"time"
 	"fmt"

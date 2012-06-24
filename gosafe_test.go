@@ -3,10 +3,12 @@ package gosafe
 import (
 	"bytes"
 	"github.com/zond/tools"
+	child "./child"
 	"io/ioutil"
 	"os"
 	"reflect"
 	"strings"
+	"math"
 	"testing"
 )
 
@@ -153,7 +155,7 @@ func mapTest(t *testing.T, i1, i2 interface{}) {
 
 func TestHandling(t *testing.T) {
 	c := NewCompiler()
-	c.Allow("github.com/zond/gosafe/child")
+	c.Allow("../child")
 	s := "testdata/test3.go"
 	cmd, err := c.CommandFile(s)
 	if err == nil {
@@ -209,7 +211,7 @@ func continuousHandleTest(t *testing.T, cmd *Cmd, ti interface{}, ni map[interfa
 
 func TestContinuousHandling(t *testing.T) {
 	c := NewCompiler()
-	c.Allow("github.com/zond/gosafe/child")
+	c.Allow("../child")
 	c.Allow("math/rand")
 	c.Allow("time")
 	c.Allow("fmt")
@@ -265,12 +267,42 @@ func TestRepeatedRuns(t *testing.T) {
 	}
 }
 
+func TestChildServer(t *testing.T) {
+	c := NewCompiler()
+	c.Allow("math")
+	c.Allow("../child")
+	f := "testdata/test5.go"
+	cmd, err := c.CommandFile(f)
+	if err == nil {
+		call := child.Call{"sin", child.Args{0.5}}
+		response := child.Response{}
+		if err = cmd.Handle(call, &response); err == nil {
+			response = child.Response{}
+			if err = cmd.Handle(call, &response); err == nil {
+				if f, ok := response.Payload.(float64); ok {
+ 					if f != math.Sin(0.5) {
+						t.Error(f, "should return math.Sin(0.5) = ", math.Sin(0.5), "but got", f)
+					}
+				} else {
+					t.Error(f, "should return a float64, got", response)
+				}
+			} else {
+				t.Error(f, "should handle", call, "but got", err)
+			}
+		} else {
+			t.Error(f, "should handle", call, "but got", err)
+		}
+	} else {
+		t.Error(f, "should compile, but got", err)
+	}
+}
+
 func TestGosafety(t *testing.T) {
 	c := NewCompiler()
 	c.Allow("time")
 	c.Allow("os")
 	c.Allow("fmt")
-	c.Allow("github.com/zond/gosafe/child")
+	c.Allow("../child")
 	f := "testdata/test3.go"
 	cmd, err := c.RunFile(f)
 	if err == nil {
