@@ -16,8 +16,6 @@ See https://github.com/zond/gosafe/blob/master/examples/example.go
 
 Use `child.Stdin()`, `child.Stdout()` and `child.Stderr()` in https://github.com/zond/gosafe/blob/master/child/child.go to communicate with the child processes via structured data. 
 
-See https://github.com/zond/gosafe/blob/master/examples/test3.go for an example.
-
 ## On demand child processes
 
 Use `gosafe.Compiler#Command`, `gosafe.Compiler#CommandFile` and `gosafe.Cmd#Handle` to create child process handlers that will stay dormant until needed (when `gosafe.Cmd#Handle` is called), and die again after a customizable timeout without new messages.
