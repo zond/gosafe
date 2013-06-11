@@ -14,7 +14,7 @@ package gosafe
 import (
 	"bytes"
 	"crypto/sha1"
-	"./child"
+	"github.com/zond/gosafe/child"
 	"encoding/json"
 	"fmt"
 	"github.com/zond/tools"
