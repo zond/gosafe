@@ -2,6 +2,10 @@
 
 A Go tool to safely compile and run Go programs by only allowing importing of whitelisted packages.
 
+## Caveats
+
+If you are not careful, running in parallell might let the child processes execute arbitrary code: https://github.com/zond/gosafe/issues/1
+
 ## Why
 
 To enable running any piece of Go code (even if it comes from unknown sources) with ease and safety.

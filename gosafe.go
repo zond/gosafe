@@ -1,26 +1,26 @@
 /*
  A Go tool to safely compile and run Go programs by only allowing importing of whitelisted packages.
- 
+
  Use gosafe.Compiler.Allow(string) to allow given packages, then run code with gosafe.Compiler.Run(string) or gosafe.Compiler.RunFile(string).
- 
+
  Use child.Stdin(), child.Stdout() and child.Stderr() in github.com/zond/gosafe/child to communicate with the child processes via structured data.
- 
+
  Use gosafe.Compiler.Command(string), gosafe.Compiler.CommandFile(string) and gosafe.Cmd.Handle(interface{}, interface{} to create child process handlers that will stay dormant until needed (when gosafe.Cmd.Handle(...) is called), and die again after a customizable timeout without new messages.
 
  Go to https://github.com/zond/gosafe for the source, of course.
- */
+*/
 package gosafe
 
 import (
 	"bytes"
 	"crypto/sha1"
-	"github.com/zond/gosafe/child"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/zond/gosafe/child"
 	"github.com/zond/tools"
 	"go/ast"
 	"go/parser"
-	"errors"
 	"go/token"
 	"hash"
 	"io"
@@ -60,13 +60,13 @@ func (self Error) Error() string {
 */
 type Cmd struct {
 	// Binary is the path to the executable file represented by this Cmd
-	Binary    string
+	Binary string
 	// Cmd is the os/exec.Cmd wrapped by this Cmd
-	Cmd       *exec.Cmd
+	Cmd *exec.Cmd
 	// Stdin is the Stdin of the wrapped process
-	Stdin     io.WriteCloser
+	Stdin io.WriteCloser
 	// Stdout is the Stdout of the wrapped process
-	Stdout    io.Reader
+	Stdout io.Reader
 	// Stderr is the Stderr of the wrapped process
 	Stderr    io.Writer
 	encoder   *json.Encoder
@@ -74,7 +74,7 @@ type Cmd struct {
 	lastEvent time.Time
 	server    child.Server
 	// The amount of time idle child processes are allowed to live without handling messages.
-	Timeout   time.Duration
+	Timeout time.Duration
 }
 
 func (self *Cmd) String() string {
@@ -87,6 +87,7 @@ func (self *Cmd) String() string {
 	}
 	return fmt.Sprintf("<Cmd %v %v>", self.Binary, s)
 }
+
 // Encode sends i to the child process stdin through a json.Encoder.
 func (self *Cmd) Encode(i interface{}) error {
 	if self.encoder == nil {
@@ -94,6 +95,7 @@ func (self *Cmd) Encode(i interface{}) error {
 	}
 	return self.encoder.Encode(i)
 }
+
 // Decode receives i from the child process stdout through a json.Decoder.
 func (self *Cmd) Decode(i interface{}) error {
 	if self.decoder == nil {
@@ -101,6 +103,7 @@ func (self *Cmd) Decode(i interface{}) error {
 	}
 	return self.decoder.Decode(i)
 }
+
 // Kill will kill the child process if it is alive.
 func (self *Cmd) Kill() error {
 	if self.Cmd == nil {
@@ -111,6 +114,7 @@ func (self *Cmd) Kill() error {
 	}
 	return self.Cmd.Process.Kill()
 }
+
 // Pid returns the pid of the child process, and whether it was alive.
 func (self *Cmd) Pid() (int, bool) {
 	if self.Cmd == nil {
@@ -134,6 +138,7 @@ func (self *Cmd) timeout() time.Duration {
 	}
 	return self.Timeout
 }
+
 // Register the given name and Service function to serve callbacks from the child process.
 //
 //   func get(args... interface{}) interface{} {
@@ -161,8 +166,9 @@ func createRequest(response child.Response) (rval child.Request, err error) {
 	}
 	return child.Request{}, errors.New(fmt.Sprintf(child.NotProperRequest, response.Payload))
 }
+
 // Call will call one function registered via child.Server#Register and return its return value.
-func (self *Cmd) Call(name string, args... interface{}) (rval interface{}, err error) {
+func (self *Cmd) Call(name string, args ...interface{}) (rval interface{}, err error) {
 	response := child.Response{}
 	self.Handle(child.Request{name, args}, &response)
 	for {
@@ -184,6 +190,7 @@ func (self *Cmd) Call(name string, args... interface{}) (rval interface{}, err e
 	}
 	return response.Payload, nil
 }
+
 // Handle starts the child process if it is dead, sends i to the child process using Encode and receives o with the response using Decode.
 // Will create a timer that kills this process after gosafe.Cmd.Timeout has passed if no new messages arrive.
 func (self *Cmd) Handle(i, o interface{}) error {
@@ -216,6 +223,7 @@ func (self *Cmd) Handle(i, o interface{}) error {
 	}()
 	return nil
 }
+
 // Start clears all child process-specific state of this Cmd and restart the process.
 func (self *Cmd) Start() error {
 	self.Cmd = exec.Command(self.Binary)
@@ -255,8 +263,20 @@ type Compiler struct {
 func NewCompiler() *Compiler {
 	return &Compiler{make(map[string]bool), make(map[string]time.Time), make(map[string]time.Time)}
 }
+
+// AllowRuntime will allow the runtime package for this gosafe.Compiler.
+// See https://github.com/zond/gosafe/issues/1 as to why this is necessary.
+func (self *Compiler) AllowRuntime() {
+	self.allowed[fmt.Sprint("\"runtime\"")] = true
+}
+
 // Allow will add p to the allowed list of golang packages for this gosafe.Compiler.
+// It will NOT allow the runtime package - including that one requires a more conscious effort.
+// See https://github.com/zond/gosafe/issues/1 as to why this is necessary.
 func (self *Compiler) Allow(p string) {
+	if p == "runtime" {
+		panic(fmt.Errorf("Allowing \"runtime\" requires you to use Compiler#AllowRuntime. See https://github.com/zond/gosafe/issues/1"))
+	}
 	self.allowed[fmt.Sprint("\"", p, "\"")] = true
 }
 func (self *Compiler) shorten(s string) string {
@@ -267,6 +287,7 @@ func (self *Compiler) shorten(s string) string {
 	hasher.Write([]byte(s))
 	return tools.NewBigIntBytes(hasher.Sum(nil)).BaseString(tools.MAX_BASE)
 }
+
 // Check will return an error if this gosafe.Compiler doesn't allow  the given file to be compiled.
 func (self *Compiler) Check(file string) error {
 	fstat, err := os.Stat(file)
@@ -305,6 +326,7 @@ func (self *Compiler) Check(file string) error {
 	self.okChecked[file] = time.Now()
 	return nil
 }
+
 // RunFile will start a gosafe.Cmd encapsulating the given file and return it.
 func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 	cmd, err = self.CommandFile(file)
@@ -314,6 +336,7 @@ func (self *Compiler) RunFile(file string) (cmd *Cmd, err error) {
 	cmd.Start()
 	return cmd, nil
 }
+
 // Run will start a gosafe.Cmd encapsulating the given code and return it.
 func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 	cmd, err = self.Command(s)
@@ -323,6 +346,7 @@ func (self *Compiler) Run(s string) (cmd *Cmd, err error) {
 	cmd.Start()
 	return cmd, nil
 }
+
 // CommandFile will return a gosafe.Cmd encapsulating the given file.
 func (self *Compiler) CommandFile(file string) (cmd *Cmd, err error) {
 	compiled, err := self.Compile(file)
@@ -332,6 +356,7 @@ func (self *Compiler) CommandFile(file string) (cmd *Cmd, err error) {
 	cmd = &Cmd{Binary: compiled, server: make(child.Server)}
 	return cmd, nil
 }
+
 // Command will return a gosafe.Cmd encapsulating the given code.
 func (self *Compiler) Command(s string) (cmd *Cmd, err error) {
 	output := path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe.go", self.shorten(s)))
@@ -349,6 +374,7 @@ func (self *Compiler) Command(s string) (cmd *Cmd, err error) {
 	}
 	return self.CommandFile(file.Name())
 }
+
 // Compile will compile the given file to a temporary file if deemed safe, and return the path to the resulting binary.
 func (self *Compiler) Compile(file string) (output string, err error) {
 	output = path.Join(os.TempDir(), fmt.Sprintf("%s.gosafe", self.shorten(file)))
@@ -358,6 +384,7 @@ func (self *Compiler) Compile(file string) (output string, err error) {
 	}
 	return output, nil
 }
+
 // CompileTo will compile the given file to a given path file if deemed safe.
 func (self *Compiler) CompileTo(file, output string) error {
 	fstat, err := os.Stat(file)
